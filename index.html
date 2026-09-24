@@ -3,11 +3,14 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>自由大亨：全球市場</title>
+    <title>自由大亨：全球市場v7</title>
     <!-- Firebase SDK (Compat) -->
     <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-database-compat.js"></script>
+    <!-- Font Awesome 圖示庫 -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
     <style>
         :root { 
             --bg: #121212; 
@@ -43,6 +46,10 @@
             font-weight: bold; 
             cursor: pointer; 
             margin: 2px; 
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 5px;
         }
         .btn:disabled { 
             background: #444 !important; 
@@ -90,6 +97,10 @@
             cursor: pointer; 
             border-radius: 4px; 
             white-space: nowrap; 
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
         }
         .tab-btn.active { background: var(--accent); color: #fff; }
         .tab-content { display: none; }
@@ -158,31 +169,31 @@
 
     <div id="toast-container"></div>
 
-    <h2>🌐 自由大亨：全球市場</h2>
+    <h2><i class="fa-solid fa-globe"></i> 自由大亨：全球市場</h2>
     
     <!-- 帳號登入 / 註冊區 -->
     <div id="auth-sec" class="card">
-        <h3 id="auth-title">🔐 企業帳號登入</h3>
+        <h3 id="auth-title"><i class="fa-solid fa-lock"></i> 企業帳號登入</h3>
         <input type="email" id="auth-email" placeholder="電子郵件 (Email)"><br>
         <input type="password" id="auth-pass" placeholder="密碼 (至少 6 位數)"><br>
         <div id="company-name-box" style="display: none;">
             <input type="text" id="auth-company" placeholder="企業名稱 (例: 泰坦重工)"><br>
         </div>
-        <button class="btn btn-success" id="auth-btn" style="width:100%; margin-top:5px;" onclick="handleAuth()">登入企業</button>
-        <button class="btn btn-purple" style="width:100%; margin-top:5px;" onclick="toggleAuthMode()" id="toggle-btn">切換至：註冊新帳號</button>
+        <button class="btn btn-success" id="auth-btn" style="width:100%; margin-top:5px;" onclick="handleAuth()"><i class="fa-solid fa-right-to-bracket"></i> 登入企業</button>
+        <button class="btn btn-purple" style="width:100%; margin-top:5px;" onclick="toggleAuthMode()" id="toggle-btn"><i class="fa-solid fa-user-plus"></i> 切換至：註冊新帳號</button>
     </div>
 
     <!-- 遊戲主體內容 -->
     <div id="game-sec" style="display: none;">
 
-        <!-- 頂部即時生產狀態顯示列（位置如截圖紅圈標註） -->
+        <!-- 頂部即時生產狀態顯示列 -->
         <div class="global-status-bar">
             <div class="flex-between">
                 <div>
-                    ⚙️ <b>全域生產狀態：</b>
+                    <i class="fa-solid fa-gears fa-spin" style="color:var(--accent);"></i> <b>全域生產狀態：</b>
                     <span id="global-task-name" style="color:#ffc107; font-weight:bold;">💤 工廠閒置中</span>
                 </div>
-                <button class="btn btn-danger" id="stop-task-btn" style="font-size:0.75em; padding: 3px 8px; display:none;" onclick="stopProductionTask()">🛑 停止生產</button>
+                <button class="btn btn-danger" id="stop-task-btn" style="font-size:0.75em; padding: 3px 8px; display:none;" onclick="stopProductionTask()"><i class="fa-solid fa-circle-stop"></i> 停止生產</button>
             </div>
             <div class="progress-bg">
                 <div id="global-progress-bar" class="progress-fill"></div>
@@ -191,30 +202,30 @@
         
         <!-- 頁籤導航欄 -->
         <div class="tab-nav">
-            <button class="tab-btn active" onclick="switchTab(event, 'tab-overview')">🏢 企業總覽</button>
-            <button class="tab-btn" onclick="switchTab(event, 'tab-production')">🏭 產業生產</button>
-            <button class="tab-btn" onclick="switchTab(event, 'tab-market')">🏛️ 全球交易所</button>
-            <button class="tab-btn" onclick="switchTab(event, 'tab-wiki')">📖 商業百科</button>
+            <button class="tab-btn active" onclick="switchTab(event, 'tab-overview')"><i class="fa-solid fa-building"></i> 企業總覽</button>
+            <button class="tab-btn" onclick="switchTab(event, 'tab-production')"><i class="fa-solid fa-industry"></i> 產業生產</button>
+            <button class="tab-btn" onclick="switchTab(event, 'tab-market')"><i class="fa-solid fa-landmark-flag"></i> 全球交易所</button>
+            <button class="tab-btn" onclick="switchTab(event, 'tab-wiki')"><i class="fa-solid fa-book-open"></i> 商業百科</button>
         </div>
 
         <!-- 1. 企業總覽頁籤 -->
         <div id="tab-overview" class="tab-content active">
             <div class="card" style="background: #252525;">
                 <div class="flex-between">
-                    <div>🏢 <b id="display-name" style="color:#007bff; font-size:1.1em;">-</b></div>
-                    <button class="btn btn-danger" style="font-size:0.7em; padding: 2px 6px;" onclick="logout()">安全登出</button>
+                    <div><i class="fa-solid fa-building"></i> <b id="display-name" style="color:#007bff; font-size:1.1em;">-</b></div>
+                    <button class="btn btn-danger" style="font-size:0.7em; padding: 2px 6px;" onclick="logout()"><i class="fa-solid fa-right-from-bracket"></i> 安全登出</button>
                 </div>
                 <hr style="border:0.5px solid #444; margin: 8px 0;">
-                <h4 style="margin:5px 0;">💰 財務與資產統計：</h4>
+                <h4 style="margin:5px 0;"><i class="fa-solid fa-sack-dollar"></i> 財務與資產統計：</h4>
                 <div class="grid-2">
-                    <div>💵 現金: <b id="cash" style="color: #28a745;">$0</b></div>
-                    <div>⛏️ 基礎原物料總數: <b id="inv-t1-sum">0</b></div>
-                    <div>🏭 中游加工品總數: <b id="inv-t2-sum">0</b></div>
-                    <div>📦 高階終端品總數: <b id="inv-t3-sum">0</b></div>
+                    <div><i class="fa-solid fa-money-bill-wave" style="color:#28a745;"></i> 現金: <b id="cash" style="color: #28a745;">$0</b></div>
+                    <div><i class="fa-solid fa-cubes"></i> 基礎原物料總數: <b id="inv-t1-sum">0</b></div>
+                    <div><i class="fa-solid fa-boxes-stacked"></i> 中游加工品總數: <b id="inv-t2-sum">0</b></div>
+                    <div><i class="fa-solid fa-box-open"></i> 高階終端品總數: <b id="inv-t3-sum">0</b></div>
                 </div>
             </div>
             <div class="card">
-                <h4>📦 詳細物料倉庫庫存</h4>
+                <h4><i class="fa-solid fa-warehouse"></i> 詳細物料倉庫庫存</h4>
                 <div id="inventory-detail-list" class="grid-2" style="font-size: 0.85em;">
                     <!-- 由 JS 動態繪製倉庫物品 -->
                 </div>
@@ -224,7 +235,7 @@
         <!-- 2. 產業生產頁籤 -->
         <div id="tab-production" class="tab-content">
             <div class="card">
-                <h3>🏭 產業生產中心與科技解鎖樹</h3>
+                <h3><i class="fa-solid fa-industry"></i> 產業生產中心與科技解鎖樹</h3>
                 <p style="color:#aaa; font-size:0.85em; margin-top:-5px;">點擊項目後將開啟【自動循環生產】，直到手動停止或材料耗盡。</p>
                 <div id="industry-production-list">
                     <!-- 由 JS 動態生成產業生產區塊 -->
@@ -235,17 +246,17 @@
         <!-- 3. 全球交易所與政府採購頁籤 -->
         <div id="tab-market" class="tab-content">
             <div class="card">
-                <h3>🏛️ 全球玩家即時交易所</h3>
+                <h3><i class="fa-solid fa-store"></i> 全球玩家即時交易所</h3>
                 <p style="margin:2px 0; font-size:0.85em; color:#aaa;">選擇物料發布賣單至大盤（每賣出1000個1小時後漲價5%，12小時滯銷降價10%）：</p>
                 <div class="grid-2">
                     <select id="sell-item" onchange="updateMarketPriceDisplay()"></select>
                     <input type="number" id="sell-qty" min="1" placeholder="數量">
                 </div>
-                <div style="font-size:0.85em; color:#ffc107; margin-bottom:4px;">即時動態市價：$<span id="selected-market-price">0</span> (法定底價: $<span id="selected-min-price">0</span>)</div>
+                <div style="font-size:0.85em; color:#ffc107; margin-bottom:4px;"><i class="fa-solid fa-chart-line"></i> 即時動態市價：$<span id="selected-market-price">0</span> (法定底價: $<span id="selected-min-price">0</span>)</div>
                 <input type="number" id="sell-price" placeholder="設定出售單價 ($)">
-                <button class="btn btn-warning" style="width:100%; margin-top:5px;" onclick="postGlobalOrder()">📢 上架交易所</button>
+                <button class="btn btn-warning" style="width:100%; margin-top:5px;" onclick="postGlobalOrder()"><i class="fa-solid fa-bullhorn"></i> 上架交易所</button>
 
-                <h4 style="margin-bottom: 5px; margin-top:15px;">📢 全服線上掛單列表</h4>
+                <h4 style="margin-bottom: 5px; margin-top:15px;"><i class="fa-solid fa-list-check"></i> 全服線上掛單列表</h4>
                 <div class="table-responsive">
                     <table>
                         <thead>
@@ -260,7 +271,7 @@
 
             <!-- 政府物料採購處 -->
             <div class="card" style="border: 1px solid var(--warning);">
-                <h3>🏛️ 政府物料採購處 (快速變現)</h3>
+                <h3><i class="fa-solid fa-building-columns"></i> 政府物料採購處 (快速變現)</h3>
                 <p style="font-size:0.85em; color:#aaa;">選擇物料賣給政府（保底價收購）：</p>
                 
                 <div class="grid-2">
@@ -268,14 +279,14 @@
                     <input type="number" id="npc-sell-qty" min="1" value="1" placeholder="出售數量" oninput="updateNpcEstimate()">
                 </div>
                 <div style="font-size:0.9em; margin: 6px 0;">預計獲得政府補貼：<b id="npc-est-payout" style="color:#28a745;">$0</b></div>
-                <button class="btn btn-success" style="width:100%; font-size:1em;" onclick="confirmNpcSell()">✅ 確定出售給政府</button>
+                <button class="btn btn-success" style="width:100%; font-size:1em;" onclick="confirmNpcSell()"><i class="fa-solid fa-circle-check"></i> 確定出售給政府</button>
             </div>
         </div>
 
-        <!-- 4. 商業百科 (Wiki) 頁籤 (包含產業樹結構總覽) -->
+        <!-- 4. 商業百科 (Wiki) 頁籤 -->
         <div id="tab-wiki" class="tab-content">
             <div class="card">
-                <h3>🌳 12 大產業鏈與科技解鎖總覽</h3>
+                <h3><i class="fa-solid fa-sitemap"></i> 12 大產業鏈與科技解鎖總覽</h3>
                 <p style="font-size:0.85em; color:#aaa;">從「重工業與冶金（採礦）」開始解鎖您的全球商業帝國：</p>
                 <div class="table-responsive">
                     <table>
@@ -285,7 +296,7 @@
                                 <th>基礎原物料 (T1)</th>
                                 <th>中游加工品 (T2)</th>
                                 <th>高階終端產品 (T3)</th>
-                                <th>🔒 終極解鎖科技</th>
+                                <th><i class="fa-solid fa-lock"></i> 終極解鎖科技</th>
                                 <th>研發資金</th>
                                 <th>前置解鎖條件</th>
                             </tr>
@@ -298,7 +309,7 @@
             </div>
 
             <div class="card">
-                <h3>📖 商業百科與物料標準規範</h3>
+                <h3><i class="fa-solid fa-book"></i> 商業百科與物料標準規範</h3>
                 <div class="table-responsive">
                     <table>
                         <thead>
@@ -396,9 +407,9 @@
 
         function toggleAuthMode() {
             isSignUpMode = !isSignUpMode;
-            document.getElementById('auth-title').innerText = isSignUpMode ? "📝 註冊新企業帳號" : "🔐 企業帳號登入";
-            document.getElementById('auth-btn').innerText = isSignUpMode ? "註冊" : "登入";
-            document.getElementById('toggle-btn').innerText = isSignUpMode ? "切換至：登入帳號" : "切換至：註冊新帳號";
+            document.getElementById('auth-title').innerHTML = isSignUpMode ? '<i class="fa-solid fa-user-plus"></i> 註冊新企業帳號' : '<i class="fa-solid fa-lock"></i> 企業帳號登入';
+            document.getElementById('auth-btn').innerHTML = isSignUpMode ? '<i class="fa-solid fa-user-check"></i> 註冊' : '<i class="fa-solid fa-right-to-bracket"></i> 登入';
+            document.getElementById('toggle-btn').innerHTML = isSignUpMode ? '<i class="fa-solid fa-right-to-bracket"></i> 切換至：登入帳號' : '<i class="fa-solid fa-user-plus"></i> 切換至：註冊新帳號';
             document.getElementById('company-name-box').style.display = isSignUpMode ? "block" : "none";
         }
 
@@ -445,7 +456,7 @@
                     let parentInd = INDUSTRIES.find(i => i.id === ind.unlockParent);
                     return `
                         <div class="industry-card locked">
-                            <h4 style="margin:0; color:#888;">🔒 ${ind.name} (未解鎖)</h4>
+                            <h4 style="margin:0; color:#888;"><i class="fa-solid fa-lock"></i> ${ind.name} (未解鎖)</h4>
                             <p style="font-size:0.85em; color:#dc3545; margin: 5px 0;">需先研發解鎖【${parentInd.name}】之終極科技</p>
                         </div>
                     `;
@@ -453,34 +464,34 @@
 
                 return `
                     <div class="industry-card">
-                        <h4 style="margin:0 0 8px 0; color:#007bff;">${ind.name}</h4>
+                        <h4 style="margin:0 0 8px 0; color:#007bff;"><i class="fa-solid fa-industry"></i> ${ind.name}</h4>
                         <div style="margin-bottom:6px;">
                             <div class="flex-between">
-                                <span>⛏️ 自動採集/生產原料 (${ind.t1}) - 3秒/次</span>
-                                <button class="btn btn-success" onclick="startAutoTask('${ind.id}', 't1')">🔄 自動採集</button>
+                                <span><i class="fa-solid fa-pickaxe"></i> 自動採集/生產原料 (${ind.t1}) - 3秒/次</span>
+                                <button class="btn btn-success" onclick="startAutoTask('${ind.id}', 't1')"><i class="fa-solid fa-rotate"></i> 自動採集</button>
                             </div>
                         </div>
                         <div style="margin-bottom:6px;">
                             <div class="flex-between">
-                                <span>🏭 加工組裝 (${ind.t2}) - 需 2x ${ind.t1} (5秒)</span>
-                                <button class="btn btn-purple" onclick="startAutoTask('${ind.id}', 't2')">🔄 自動加工</button>
+                                <span><i class="fa-solid fa-gears"></i> 加工組裝 (${ind.t2}) - 需 2x ${ind.t1} (5秒)</span>
+                                <button class="btn btn-purple" onclick="startAutoTask('${ind.id}', 't2')"><i class="fa-solid fa-rotate"></i> 自動加工</button>
                             </div>
                         </div>
                         <div style="margin-bottom:6px;">
                             <div class="flex-between">
-                                <span>📦 高階製造 (${ind.t3}) - 需 2x ${ind.t2} (10秒)</span>
-                                <button class="btn btn-teal" onclick="startAutoTask('${ind.id}', 't3')">🔄 自動製造</button>
+                                <span><i class="fa-solid fa-box"></i> 高階製造 (${ind.t3}) - 需 2x ${ind.t2} (10秒)</span>
+                                <button class="btn btn-teal" onclick="startAutoTask('${ind.id}', 't3')"><i class="fa-solid fa-rotate"></i> 自動製造</button>
                             </div>
                         </div>
                         <div class="tech-box">
                             <div class="flex-between">
-                                <b>🔒 終極科技: ${ind.techName}</b>
-                                <span style="color:${isTechUnlocked ? '#28a745' : '#ffc107'}; font-weight:bold;">${isTechUnlocked ? '✅ 已解鎖' : '未解鎖'}</span>
+                                <b><i class="fa-solid fa-atom"></i> 終極科技: ${ind.techName}</b>
+                                <span style="color:${isTechUnlocked ? '#28a745' : '#ffc107'}; font-weight:bold;">${isTechUnlocked ? '<i class="fa-solid fa-circle-check"></i> 已解鎖' : '<i class="fa-solid fa-circle-xmark"></i> 未解鎖'}</span>
                             </div>
                             <div style="font-size:0.8em; color:#aaa; margin: 4px 0;">
                                 解鎖資金: $${ind.techCost.toLocaleString()} | 材料: ${ind.t1}x${ind.techReq.t1}, ${ind.t2}x${ind.techReq.t2}, ${ind.t3}x${ind.techReq.t3}
                             </div>
-                            ${!isTechUnlocked ? `<button class="btn btn-warning" style="width:100%;" onclick="unlockIndustryTech('${ind.id}')">⚡ 研發解鎖科技 (開啟下一階段產業)</button>` : ''}
+                            ${!isTechUnlocked ? `<button class="btn btn-warning" style="width:100%;" onclick="unlockIndustryTech('${ind.id}')"><i class="fa-solid fa-flask"></i> 研發解鎖科技 (開啟下一階段產業)</button>` : ''}
                         </div>
                     </div>
                 `;
@@ -523,7 +534,7 @@
             if (activeTask) {
                 showToast("🛑 已停止自動生產作業。");
                 activeTask = null;
-                document.getElementById('global-task-name').innerText = "💤 工廠閒置中";
+                document.getElementById('global-task-name').innerHTML = "💤 工廠閒置中";
                 document.getElementById('global-progress-bar').style.width = "0%";
                 document.getElementById('stop-task-btn').style.display = "none";
             }
@@ -535,10 +546,10 @@
                     activeTask.progress += 0.1;
                     let percent = Math.min((activeTask.progress / activeTask.duration) * 100, 100);
 
-                    // 更新頂部全域狀態橫幅 (如截圖位置)
-                    document.getElementById('global-task-name').innerText = `${activeTask.displayName} (${percent.toFixed(0)}%)`;
+                    // 更新頂部全域狀態橫幅
+                    document.getElementById('global-task-name').innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> ${activeTask.displayName} (${percent.toFixed(0)}%)`;
                     document.getElementById('global-progress-bar').style.width = percent + "%";
-                    document.getElementById('stop-task-btn').style.display = "inline-block";
+                    document.getElementById('stop-task-btn').style.display = "inline-flex";
 
                     // 完成一輪生產
                     if (activeTask.progress >= activeTask.duration) {
@@ -554,7 +565,7 @@
                             if ((playerData.inventory[reqKey] || 0) < 2) {
                                 showToast(`⚠️ 材料耗盡！${activeTask.displayName} 已自動停止生產。`);
                                 activeTask = null;
-                                document.getElementById('global-task-name').innerText = "💤 工廠閒置中 (材料不足)";
+                                document.getElementById('global-task-name').innerHTML = "💤 工廠閒置中 (材料不足)";
                                 document.getElementById('global-progress-bar').style.width = "0%";
                                 document.getElementById('stop-task-btn').style.display = "none";
                             } else {
@@ -565,7 +576,7 @@
                         savePlayerData();
                     }
                 } else {
-                    document.getElementById('global-task-name').innerText = "💤 工廠閒置中";
+                    document.getElementById('global-task-name').innerHTML = "💤 工廠閒置中";
                     document.getElementById('global-progress-bar').style.width = "0%";
                     document.getElementById('stop-task-btn').style.display = "none";
                 }
@@ -748,7 +759,7 @@
                             <td>${ord.qty}</td>
                             <td>$${ord.price} ${ord.discounted ? '<span style="color:#dc3545; font-size:0.8em;">(降價10%)</span>' : ''}</td>
                             <td>
-                                ${isMine ? '<span style="color:#aaa;">我的賣單</span>' : `<button class="btn btn-success" onclick="buyOrder('${key}', '${ord.itemKey}',${ord.qty}, ${ord.price}, '${ord.sellerUid}')">購買</button>`}
+                                ${isMine ? '<span style="color:#aaa;">我的賣單</span>' : `<button class="btn btn-success" onclick="buyOrder('${key}', '${ord.itemKey}',${ord.qty}, ${ord.price}, '${ord.sellerUid}')"><i class="fa-solid fa-cart-shopping"></i> 購買</button>`}
                             </td>
                         </tr>
                     `;
