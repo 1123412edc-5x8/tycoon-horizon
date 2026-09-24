@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>自由大亨：全球市場 - 完整擴充版</title>
+    <title>自由大亨：全球市場 - 完整擴充版v2</title>
     <!-- Firebase SDK (Compat) -->
     <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-auth-compat.js"></script>
@@ -50,6 +50,9 @@
             from { opacity: 0; transform: translateY(-20px); }
             to { opacity: 1; transform: translateY(0); }
         }
+
+        /* 產業樹表格捲軸容器 */
+        .table-responsive { overflow-x: auto; -webkit-overflow-scrolling: touch; }
     </style>
 </head>
 <body>
@@ -78,6 +81,8 @@
         <div class="tab-nav">
             <button class="tab-btn active" onclick="switchTab(event, 'tab-overview')">🏢 企業總覽</button>
             <button class="tab-btn" onclick="switchTab(event, 'tab-production')">🏭 產業生產</button>
+
+            <button class="tab-btn" onclick="switchTab(event, 'tab-tree')">🌳 產業樹與科技</button>
             <button class="tab-btn" onclick="switchTab(event, 'tab-market')">🏛️ 全球交易所</button>
             <button class="tab-btn" onclick="switchTab(event, 'tab-tech')">🔬 科技研發</button>
             <button class="tab-btn" onclick="switchTab(event, 'tab-wiki')">📖 商業百科</button>
@@ -164,7 +169,34 @@
             </div>
         </div>
 
-        <!-- 3. 全球交易所頁籤 -->
+        <!-- 3. 產業樹與解鎖條件頁籤 (全新新增) -->
+        <div id="tab-tree" class="tab-content">
+            <div class="card">
+                <h3>🌳 12 大產業鏈與「極肝」科技樹解鎖全表</h3>
+                <p style="font-size:0.85em; color:#aaa;">探索遊戲中 12 大產業的三階段供應鏈（Tier 1 ~ Tier 3）與終極科技解鎖門檻。</p>
+                <div class="table-responsive">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>產業類別</th>
+                                <th>基礎原物料 (T1)</th>
+                                <th>中游加工品 (T2)</th>
+                                <th>高階終端產品 (T3)</th>
+                                <th>🔒 解鎖科技內容</th>
+                                <th>研發資金</th>
+                                <th>解鎖所需材料建議 (極肝門檻)</th>
+                                <th>研發耗時</th>
+                            </tr>
+                        </thead>
+                        <tbody id="industry-tree-table-body">
+                            <!-- 由 JS 動態繪製 -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- 4. 全球交易所頁籤 -->
         <div id="tab-market" class="tab-content">
             <div class="card">
                 <h3>🏛️ 全球玩家即時交易所</h3>
@@ -219,7 +251,7 @@
             </div>
         </div>
 
-        <!-- 4. 科技研發頁籤 (新增內容) -->
+        <!-- 5. 科技研發頁籤 -->
         <div id="tab-tech" class="tab-content">
             <div class="card">
                 <h3>🔬 企業科技研發中心</h3>
@@ -252,7 +284,7 @@
             </div>
         </div>
 
-        <!-- 5. 商業百科 (Wiki) 頁籤 -->
+        <!-- 6. 商業百科 (Wiki) 頁籤 -->
         <div id="tab-wiki" class="tab-content">
             <div class="card">
                 <h3>📖 商業百科與規則說明 (Wiki)</h3>
@@ -295,6 +327,22 @@
         const auth = firebase.auth();
         const db = firebase.database();
 
+        // 12 大產業鏈與極肝科技樹設定檔
+        const INDUSTRY_TREE_DATA = [
+            { category: "1. 能源與化學", t1: "原油、天然氣、鋰礦", t2: "汽油、柴油、塑膠顆粒", t3: "航空燃料、高階潤滑油", tech: "🔒 核聚變與反物質能源", cost: 50000000, mats: "濃縮鈾 x10,000\n矽晶圓 x50,000\n鈦合金 x20,000", time: "168h" },
+            { category: "2. 農業與食品加工", t1: "小麥、大豆、鮮奶", t2: "麵粉、植物油、起司", t3: "精裝餐盒、高檔餐點", tech: "🔒 合成生物基因食品", cost: 10000000, mats: "培養基 x100,000\n植物油 x50,000", time: "72h" },
+            { category: "3. 重工業與冶金", t1: "鐵礦石、銅礦石、鋁土礦", t2: "粗鋼、精煉銅、電解鋁", t3: "建築鋼骨、工業機具", tech: "🔒 超導體與超合金冶煉", cost: 30000000, mats: "稀土金屬 x30,000\n高純度銅線 x80,000", time: "120h" },
+            { category: "4. 輕工與紡織", t1: "棉花、天然橡膠、原木", t2: "布料、合成橡膠、紙漿", t3: "時尚服飾、高級傢俱", tech: "🔒 智能防護外骨骼布料", cost: 15000000, mats: "合成橡膠 x60,000\n碳纖維 x15,000", time: "96h" },
+            { category: "5. 高科技電子", t1: "石英、晶圓、稀土金屬", t2: "晶片、顯示螢幕、電路板", t3: "智慧型手機、AI伺服器", tech: "🔒 量子算力矩陣", cost: 80000000, mats: "晶片(Q4+) x5,000\n航太鋁合金 x30,000", time: "240h" },
+            { category: "6. 汽車與陸路運輸", t1: "鋼材、橡膠、玻璃", t2: "引擎、車體、車用電池", t3: "燃油車、電動車(EV)", tech: "🔒 磁懸浮與反重力載具", cost: 45000000, mats: "高階鋰電池 x20,000\n超導線圈 x10,000", time: "144h" },
+            { category: "7. 航太與國防科技", t1: "鈦合金、碳纖維、晶片", t2: "火箭推進器、航電系統", t3: "商業客機、通訊火箭", tech: "🔒 深空殖民艦隊與太空站", cost: 120000000, mats: "推進器 x1,000\n航電系統 x2,000", time: "336h" },
+            { category: "8. 生技與醫療製藥", t1: "藥用植物、化學基底", t2: "醫用酒精、活性藥物成分", t3: "疫苗、高階醫療器材", tech: "🔒 基因修復與延壽膠囊", cost: 60000000, mats: "培養基 x200,000\n活性藥物 x50,000", time: "200h" },
+            { category: "9. 房地產與營建基建", t1: "沙石、水泥、木材", t2: "預拌混凝土、鋼筋", t3: "商業辦公大廈、樞紐站", tech: "🔒 海底水下城市巨構", cost: 90000000, mats: "混凝土 x500,000\n建築鋼骨 x200,000", time: "288h" },
+            { category: "10. 綠能與新能源", t1: "多晶矽、銀、鈷", t2: "太陽能電池片、光伏玻璃", t3: "儲能系統、離岸風機", tech: "🔒 全球行星級無線供電網", cost: 70000000, mats: "太陽能電池 x300,000\n精煉銅 x150,000", time: "216h" },
+            { category: "11. 海洋與船舶工程", t1: "造船鋼板、鋁合金", t2: "船用柴油引擎、螺旋槳", t3: "貨櫃輪、LNG船、郵輪", tech: "🔒 極地深海採礦潛艇", cost: 40000000, mats: "造船鋼板 x120,000\n船用引擎 x500", time: "120h" },
+            { category: "12. 奢華製品與珠寶", t1: "金礦、原鑽、高級皮革", t2: "精煉黃金、裸鑽切磨", t3: "珠寶首飾、高檔機械錶", tech: "🔒 皇室拍賣級定制高定工坊", cost: 25000000, mats: "精煉黃金 x10,000\n裸鑽 x5,000", time: "96h" }
+        ];
+
         let isSignUpMode = false;
         let currentUser = null;
         let playerData = {
@@ -322,7 +370,25 @@
         const minPrices = { iron: 10, steel: 50, parts: 250, robots: 2500 };
         let floatPrices = { iron: 15.0, steel: 65.0, parts: 310.0, robots: 2800.0 };
 
-        // 堆疊式 Toast 通知系統 (不覆蓋舊訊息)
+        // 渲染產業樹表格
+        function renderIndustryTree() {
+            const container = document.getElementById('industry-tree-table-body');
+            if (!container) return;
+            container.innerHTML = INDUSTRY_TREE_DATA.map(item => `
+                <tr>
+                    <td style="font-weight:bold; color:#007bff; white-space:nowrap;">${item.category}</td>
+                    <td style="font-size:0.85em;">${item.t1}</td>
+                    <td style="font-size:0.85em;">${item.t2}</td>
+                    <td style="font-size:0.85em;">${item.t3}</td>
+                    <td style="color:#dc3545; font-weight:bold; font-size:0.85em;">${item.tech}</td>
+                    <td style="color:#28a745; font-weight:bold;">$${item.cost.toLocaleString()}</td>
+                    <td style="font-size:0.8em; text-align:left; white-space:pre-line;">${item.mats}</td>
+                    <td>${item.time}</td>
+                </tr>
+            `).join('');
+        }
+
+        // 堆疊式 Toast 通知系統
         function showToast(msg) {
             let container = document.getElementById('toast-container');
             let toast = document.createElement('div');
@@ -360,6 +426,7 @@
                         updateNpcEstimate();
                     }
                 });
+                renderIndustryTree();
                 startGameLoop();
                 listenToGlobalMarket();
                 startMarketFluctuation();
