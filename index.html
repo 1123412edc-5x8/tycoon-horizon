@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>自由大亨：全球市場 - 完整修復版</title>
+    <title>自由大亨：全球市場 - 完美修復版</title>
     <!-- Firebase SDK (Compat) -->
     <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-auth-compat.js"></script>
@@ -13,6 +13,7 @@
         body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: var(--bg); color: #fff; margin: 0; padding: 10px; font-size: 14px; }
         .card { background: var(--card); border-radius: 8px; padding: 12px; border: 1px solid #333; margin-bottom: 10px; }
         .btn { background: var(--accent); color: #fff; border: none; padding: 8px 12px; border-radius: 4px; font-weight: bold; cursor: pointer; margin: 2px; }
+        .btn:disabled { background: #555 !important; cursor: not-allowed; opacity: 0.6; }
         .btn-success { background: var(--success); }
         .btn-warning { background: var(--warning); color: #000; }
         .btn-danger { background: var(--danger); }
@@ -22,7 +23,7 @@
         table { width: 100%; border-collapse: collapse; margin-top: 5px; font-size: 0.85em; }
         th, td { border: 1px solid #333; padding: 6px; text-align: center; }
         th { background: #2a2a2a; }
-        input, select { background: #2a2a2a; color: #fff; border: 1px solid #444; padding: 8px; border-radius: 4px; margin: 4px 0; width: 95%; }
+        input, select { background: #2a2a2a; color: #fff; border: 1px solid #444; padding: 8px; border-radius: 4px; margin: 4px 0; width: 95%; box-sizing: border-box; }
         .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
         .flex-between { display: flex; justify-content: space-between; align-items: center; }
         
@@ -32,14 +33,24 @@
         .tab-btn.active { background: var(--accent); color: #fff; }
         .tab-content { display: none; }
         .tab-content.active { display: block; }
-        .price-badge { font-size: 0.85em; padding: 2px 6px; border-radius: 4px; background: #2a2a2a; border: 1px solid #444; }
+
+        /* 遊戲內 UI 通知彈窗 (取代視窗 alert) */
+        #toast-box {
+            position: fixed; top: 20px; left: 50%; transform: translateX(-50%);
+            background: rgba(0, 0, 0, 0.85); color: #fff; border: 1px solid #555;
+            padding: 10px 20px; border-radius: 20px; font-size: 0.9em; z-index: 9999;
+            display: none; box-shadow: 0 4px 12px rgba(0,0,0,0.5); text-align: center;
+        }
     </style>
 </head>
 <body>
 
+    <!-- UI 內部訊息通知框 -->
+    <div id="toast-box">通知訊息</div>
+
     <h2>🌐 自由大亨：全球市場</h2>
     
-    <!-- 帳號登入 / 註冊區 (登入後會被完全隱藏) -->
+    <!-- 帳號登入 / 註冊區 (登入後會被完全隱藏，徹底修正 BUG 1) -->
     <div id="auth-sec" class="card">
         <h3 id="auth-title">🔐 企業帳號登入</h3>
         <input type="email" id="auth-email" placeholder="電子郵件 (Email)"><br>
@@ -78,26 +89,13 @@
                     <div>⚙️ 機械部件: <b id="inv-parts">0</b> 個</div>
                 </div>
             </div>
-
-            <!-- 政府物料採購處 (低於底價 1% 緊急收購) -->
-            <div class="card">
-                <h3>🏛️ 政府物料採購處 (低於底價 1% 收購)</h3>
-                <p style="font-size:0.85em; color:#aaa;">若交易所無人購買，可折價 1% 快速變現給政府：</p>
-                <div style="font-size:0.9em; line-height: 2.0;">
-                    • 鐵礦政府價: <b id="npc-iron-price" style="color:#ffc107;">$9.90</b> / 噸 
-                    <button class="btn btn-success" onclick="sellToNPC('iron', 10)">出售 10 噸</button><br>
-                    • 鋼材政府價: <b id="npc-steel-price" style="color:#ffc107;">$49.50</b> / 噸 
-                    <button class="btn btn-success" onclick="sellToNPC('steel', 5)">出售 5 噸</button><br>
-                    • 機械部件政府價: <b id="npc-parts-price" style="color:#ffc107;">$247.50</b> / 個 
-                    <button class="btn btn-success" onclick="sellToNPC('parts', 1)">出售 1 個</button>
-                </div>
-            </div>
         </div>
 
-        <!-- 2. 產業生產頁籤 (全部設施均配備進度條) -->
+        <!-- 2. 產業生產頁籤 (新增：排他作業機制 BUG 5) -->
         <div id="tab-production" class="tab-content">
             <div class="card">
                 <h3>🏭 產業鏈與自動化工廠</h3>
+                <p id="factory-status-text" style="color:#ffc107; font-size:0.85em; font-weight:bold;">狀態：工廠閒置中 (同時僅能啟動一個生產作業)</p>
                 
                 <!-- ⛏️ 鐵礦採集 -->
                 <div style="border-bottom: 1px solid #333; padding-bottom: 10px; margin-bottom: 10px;">
@@ -117,9 +115,9 @@
                         <b>🔥 煉鋼高爐</b>
                         <span>自動煉鋼廠: <b id="smelter-count">0</b> 座</span>
                     </div>
-                    <p style="margin: 4px 0; font-size: 0.85em; color: #aaa;">煉鋼冷卻進度 (配方: 2 噸鐵礦 $\rightarrow$ 1 噸鋼材)</p>
+                    <p style="margin: 4px 0; font-size: 0.85em; color: #aaa;">煉鋼熔煉進度 (配方: 2 噸鐵礦 $\rightarrow$ 1 噸鋼材)</p>
                     <div class="progress-bar"><div id="steel-prog" class="progress-fill" style="background:#6f42c1;"></div></div>
-                    <button class="btn btn-purple" onclick="craftSteel()">🔥 手動煉鋼 (消耗 2 鐵礦)</button>
+                    <button class="btn btn-purple" id="btn-craft-steel" onclick="startCraft('steel')">🔥 啟動煉鋼 (消耗 2 鐵礦)</button>
                     <button class="btn btn-warning" onclick="buySmelter()">⚡ 購買自動煉鋼廠 ($<span id="smelter-cost">2000</span>)</button>
                 </div>
 
@@ -128,19 +126,19 @@
                     <div class="flex-between">
                         <b>⚙️ 精密機械廠</b>
                     </div>
-                    <p style="margin: 4px 0; font-size: 0.85em; color: #aaa;">組裝精密加工進度 (配方: 3 噸鋼材 $\rightarrow$ 1 個機械部件)</p>
+                    <p style="margin: 4px 0; font-size: 0.85em; color: #aaa;">組裝加工進度 (配方: 3 噸鋼材 $\rightarrow$ 1 個機械部件)</p>
                     <div class="progress-bar"><div id="parts-prog" class="progress-fill" style="background:#007bff;"></div></div>
-                    <button class="btn btn-purple" onclick="craftParts()">⚙️ 製造機械部件 (消耗 3 鋼材)</button>
+                    <button class="btn btn-purple" id="btn-craft-parts" onclick="startCraft('parts')">⚙️ 啟動製造部件 (消耗 3 鋼材)</button>
                 </div>
             </div>
         </div>
 
-        <!-- 3. 全球交易所頁籤 (動態浮動物價) -->
+        <!-- 3. 全球交易所頁籤 (收納政府採購處 BUG 7 + 動態選單價 BUG 4) -->
         <div id="tab-market" class="tab-content">
             <div class="card">
                 <h3>🏛️ 全球玩家即時交易所</h3>
                 <div style="background:#2a2a2a; padding:8px; border-radius:6px; margin-bottom:8px; font-size:0.85em;">
-                    📈 <b>目前市場浮動參考價 (動態更新)：</b><br>
+                    📈 <b>目前市場動態參考價：</b><br>
                     • ⛏️ 鐵礦: $<span id="market-float-iron">15.0</span> | 
                     • 🏭 鋼材: $<span id="market-float-steel">65.0</span> | 
                     • ⚙️ 部件: $<span id="market-float-parts">310.0</span>
@@ -149,9 +147,9 @@
                 <p style="margin:2px 0; font-size:0.85em; color:#aaa;">發布賣單至大盤（不可低於法定底價）：</p>
                 <div class="grid-2">
                     <select id="sell-item">
-                        <option value="iron">⛏️ 鐵礦石 (底價 $10)</option>
-                        <option value="steel">🏭 鋼材 (底價 $50)</option>
-                        <option value="parts">⚙️ 機械部件 (底價 $250)</option>
+                        <option value="iron" id="opt-iron">⛏️ 鐵礦石 (即時市價 $15.0)</option>
+                        <option value="steel" id="opt-steel">🏭 鋼材 (即時市價 $65.0)</option>
+                        <option value="parts" id="opt-parts">⚙️ 機械部件 (即時市價 $310.0)</option>
                     </select>
                     <input type="number" id="sell-qty" placeholder="數量">
                 </div>
@@ -168,9 +166,23 @@
                     </tbody>
                 </table>
             </div>
+
+            <!-- 政府物料採購處 (已移動至交易區 BUG 7，修復點擊金額問題 BUG 3) -->
+            <div class="card" style="border: 1px solid var(--warning);">
+                <h3>🏛️ 政府物料採購處 (低於底價 1% 收購)</h3>
+                <p style="font-size:0.85em; color:#aaa;">若交易所無人購買，可折價 1% 快速變現給政府：</p>
+                <div style="font-size:0.9em; line-height: 2.2;">
+                    • 鐵礦政府價: <b id="npc-iron-price" style="color:#ffc107;">$9.90</b> / 噸 
+                    <button class="btn btn-success" onclick="sellToNPC('iron', 10)">出售 10 噸</button><br>
+                    • 鋼材政府價: <b id="npc-steel-price" style="color:#ffc107;">$49.50</b> / 噸 
+                    <button class="btn btn-success" onclick="sellToNPC('steel', 5)">出售 5 噸</button><br>
+                    • 機械部件政府價: <b id="npc-parts-price" style="color:#ffc107;">$247.50</b> / 個 
+                    <button class="btn btn-success" onclick="sellToNPC('parts', 1)">出售 1 個</button>
+                </div>
+            </div>
         </div>
 
-        <!-- 4. 商業百科 (Wiki) 頁籤 -->
+        <!-- 4. 商業百科 (Wiki) 頁籤 (校正金額 BUG 6) -->
         <div id="tab-wiki" class="tab-content">
             <div class="card">
                 <h3>📖 商業百科與規則說明 (Wiki)</h3>
@@ -187,13 +199,13 @@
                     </tbody>
                 </table>
 
-                <h4 style="margin-top:15px;">2. 自動化與進度條說明</h4>
-                <p>• <b>採礦場</b>：進度條代表採礦緩衝池的累積量，滿 100 噸即暫停生產。<br>
-                • <b>煉鋼高爐</b>：進度條代表高爐冷卻與自動熔煉週期。<br>
-                • <b>精密機械廠</b>：進度條代表精密部件的組裝週期。</p>
+                <h4 style="margin-top:15px;">2. 自動化與工廠排程說明</h4>
+                <p>• <b>作業排他機制</b>：工廠同一時間只能進行一個生產項目（煉鋼或組裝部件）。<br>
+                • <b>採礦場</b>：進度條代表採礦緩衝池的累積量，滿 100 噸即暫停生產。<br>
+                • <b>煉鋼高爐 / 精密廠</b>：啟用後進度條會持續推進，完成後自動交付產物。</p>
 
                 <h4 style="margin-top:15px;">3. 動態物價機制</h4>
-                <p>• 全球市場參考價會根據全服買賣供需進行浮動，玩家可評估市場行情高賣低買賺取差價！</p>
+                <p>• 全球市場參考價會動態波動，玩家可評估市場行情高賣低買賺取差價！</p>
             </div>
         </div>
 
@@ -229,14 +241,22 @@
             smelters: 0
         };
 
-        // 動態進度條狀態計時器
-        let steelProgress = 0;
-        let partsProgress = 0;
+        // 生產作業狀態管理 (BUG 5 排他作業)
+        let activeTask = null; // 'steel' 或 'parts'
+        let taskProgress = 0;
         let lastTime = Date.now();
 
         // 物料法定底價與動態浮動價
         const minPrices = { iron: 10, steel: 50, parts: 250 };
-        let floatPrices = { iron: 15, steel: 65, parts: 310 };
+        let floatPrices = { iron: 15.0, steel: 65.0, parts: 310.0 };
+
+        // 替代 alert 的自訂 UI 通知 (BUG 2)
+        function showToast(msg) {
+            let box = document.getElementById('toast-box');
+            box.innerText = msg;
+            box.style.display = 'block';
+            setTimeout(() => { box.style.display = 'none'; }, 3000);
+        }
 
         // 頁籤切換
         function switchTab(evt, tabId) {
@@ -247,7 +267,7 @@
             document.getElementById(tabId).classList.add('active');
         }
 
-        // 監聽 Firebase 帳號驗證狀態 (確保登入介面正確切換)
+        // 監聽 Firebase 帳號驗證狀態 (修正 BUG 1 登入畫面殘留)
         auth.onAuthStateChanged(user => {
             if (user) {
                 currentUser = user;
@@ -255,8 +275,8 @@
                     if (snapshot.exists()) {
                         playerData = { ...playerData, ...snapshot.val() };
                         document.getElementById('display-name').innerText = playerData.companyName || "未命名企業";
-                        // 登入成功：完全隱藏登入區塊，開啟遊戲內容
-                        document.getElementById('auth-sec').style.display = 'none';
+                        // 徹底隱藏登入區塊
+                        document.getElementById('auth-sec').style.setProperty('display', 'none', 'important');
                         document.getElementById('game-sec').style.display = 'block';
                     }
                 });
@@ -265,7 +285,6 @@
                 startMarketFluctuation();
             } else {
                 currentUser = null;
-                // 未登入：顯示登入區塊，隱藏遊戲內容
                 document.getElementById('auth-sec').style.display = 'block';
                 document.getElementById('game-sec').style.display = 'none';
             }
@@ -282,17 +301,17 @@
         function handleAuth() {
             let email = document.getElementById('auth-email').value.trim();
             let pass = document.getElementById('auth-pass').value.trim();
-            if (!email || !pass) return alert("請填寫 Email 與密碼！");
+            if (!email || !pass) return showToast("⚠️ 請填寫 Email 與密碼！");
 
             if (isSignUpMode) {
                 let company = document.getElementById('auth-company').value.trim();
-                if (!company) return alert("請輸入企業名稱！");
+                if (!company) return showToast("⚠️ 請輸入企業名稱！");
                 auth.createUserWithEmailAndPassword(email, pass).then(cred => {
                     playerData.companyName = company;
                     savePlayerData();
-                }).catch(err => alert("註冊失敗: " + err.message));
+                }).catch(err => showToast("❌ 註冊失敗: " + err.message));
             } else {
-                auth.signInWithEmailAndPassword(email, pass).catch(err => alert("登入失敗: " + err.message));
+                auth.signInWithEmailAndPassword(email, pass).catch(err => showToast("❌ 登入失敗: " + err.message));
             }
         }
 
@@ -306,7 +325,7 @@
             if (currentUser) db.ref('users/' + currentUser.uid).set(playerData);
         }
 
-        // 動態物價浮動機制
+        // 動態物價浮動機制 (BUG 4)
         function startMarketFluctuation() {
             setInterval(() => {
                 floatPrices.iron = +(minPrices.iron + Math.random() * 10).toFixed(1);
@@ -316,41 +335,64 @@
                 document.getElementById('market-float-iron').innerText = floatPrices.iron;
                 document.getElementById('market-float-steel').innerText = floatPrices.steel;
                 document.getElementById('market-float-parts').innerText = floatPrices.parts;
-            }, 10000); // 每 10 秒波動一次
+
+                // 同步更新下拉選單顯示文字
+                document.getElementById('opt-iron').innerText = `⛏️ 鐵礦石 (即時市價 $${floatPrices.iron})`;
+                document.getElementById('opt-steel').innerText = `🏭 鋼材 (即時市價 $${floatPrices.steel})`;
+                document.getElementById('opt-parts').innerText = `⚙️ 機械部件 (即時市價 $${floatPrices.parts})`;
+            }, 8000);
         }
 
-        // 遊戲主循環 (計算產能與進度條)
+        // 啟動生產 (排他機制 BUG 5)
+        function startCraft(type) {
+            if (activeTask !== null) return showToast("⚠️ 工廠正忙碌中，一次只能進行一個作業！");
+
+            if (type === 'steel') {
+                if (playerData.iron < 2) return showToast("❌ 鐵礦不足 2 噸！");
+                playerData.iron -= 2;
+                activeTask = 'steel';
+            } else if (type === 'parts') {
+                if (playerData.steel < 3) return showToast("❌ 鋼材不足 3 噸！");
+                playerData.steel -= 3;
+                activeTask = 'parts';
+            }
+            taskProgress = 0;
+            savePlayerData();
+        }
+
+        // 遊戲主循環
         function startGameLoop() {
             setInterval(() => {
                 let now = Date.now();
                 let dt = (now - lastTime) / 1000;
                 lastTime = now;
 
-                // 1. 採礦場進度與產能
+                // 1. 自動採礦場產能
                 let ironGen = (1 + playerData.miners * 1) * dt;
                 if (playerData.bufferIron < 100) {
                     playerData.bufferIron = Math.min(100, playerData.bufferIron + ironGen);
                 }
 
-                // 2. 煉鋼廠自動熔煉與進度條
-                if (playerData.smelters > 0) {
-                    steelProgress += (playerData.smelters * 20) * dt;
-                    if (steelProgress >= 100) {
-                        steelProgress = 0;
-                        if (playerData.iron >= 2) {
-                            playerData.iron -= 2;
-                            playerData.steel += 1;
-                        }
+                // 2. 單一作業線進度推進 (BUG 5)
+                if (activeTask === 'steel') {
+                    let speed = 25 + (playerData.smelters * 15);
+                    taskProgress += speed * dt;
+                    if (taskProgress >= 100) {
+                        playerData.steel += 1;
+                        activeTask = null;
+                        taskProgress = 0;
+                        showToast("✅ 煉鋼完成！獲得 1 噸鋼材。");
+                        savePlayerData();
                     }
-                } else {
-                    steelProgress = 0;
-                }
-
-                // 3. 精密機械廠組裝進度條
-                if (playerData.steel >= 3) {
-                    partsProgress = (partsProgress + 15 * dt) % 100;
-                } else {
-                    partsProgress = 0;
+                } else if (activeTask === 'parts') {
+                    taskProgress += 20 * dt;
+                    if (taskProgress >= 100) {
+                        playerData.parts += 1;
+                        activeTask = null;
+                        taskProgress = 0;
+                        showToast("✅ 機械部件組裝完成！獲得 1 個部件。");
+                        savePlayerData();
+                    }
                 }
 
                 updateUI();
@@ -360,22 +402,40 @@
         }
 
         function updateUI() {
-            // 資產面板
+            // 資產顯示
             document.getElementById('cash').innerText = '$' + Math.floor(playerData.cash).toLocaleString();
             document.getElementById('inv-iron').innerText = playerData.iron.toFixed(1);
             document.getElementById('inv-steel').innerText = playerData.steel.toFixed(1);
             document.getElementById('inv-parts').innerText = Math.floor(playerData.parts);
-
-            // 政府採購價 (-1% 底價)
-            document.getElementById('npc-iron-price').innerText = '$' + (minPrices.iron * 0.99).toFixed(2);
-            document.getElementById('npc-steel-price').innerText = '$' + (minPrices.steel * 0.99).toFixed(2);
-            document.getElementById('npc-parts-price').innerText = '$' + (minPrices.parts * 0.99).toFixed(2);
 
             // 生產設施與進度條
             document.getElementById('iron-buf').innerText = playerData.bufferIron.toFixed(1);
             document.getElementById('iron-prog').style.width = (playerData.bufferIron / 100 * 100) + '%';
-            document.getElementById('steel-prog').style.width = steelProgress + '%';
-            document.getElementById('parts-prog').style.width = partsProgress + '%';
+            
+            // 作業按鈕與進度條排他狀態更新
+            let steelBtn = document.getElementById('btn-craft-steel');
+            let partsBtn = document.getElementById('btn-craft-parts');
+            let statusText = document.getElementById('factory-status-text');
+
+            if (activeTask === 'steel') {
+                document.getElementById('steel-prog').style.width = taskProgress + '%';
+                document.getElementById('parts-prog').style.width = '0%';
+                steelBtn.disabled = true; steelBtn.innerText = "⏳ 熔煉中...";
+                partsBtn.disabled = true;
+                statusText.innerText = "狀態：🔥 高爐熔煉中...";
+            } else if (activeTask === 'parts') {
+                document.getElementById('steel-prog').style.width = '0%';
+                document.getElementById('parts-prog').style.width = taskProgress + '%';
+                steelBtn.disabled = true;
+                partsBtn.disabled = true; partsBtn.innerText = "⏳ 組裝中...";
+                statusText.innerText = "狀態：⚙️ 精密組裝中...";
+            } else {
+                document.getElementById('steel-prog').style.width = '0%';
+                document.getElementById('parts-prog').style.width = '0%';
+                steelBtn.disabled = false; steelBtn.innerText = "🔥 啟動煉鋼 (消耗 2 鐵礦)";
+                partsBtn.disabled = false; partsBtn.innerText = "⚙️ 啟動製造部件 (消耗 3 鋼材)";
+                statusText.innerText = "狀態：工廠閒置中 (同時僅能啟動一個生產作業)";
+            }
 
             document.getElementById('miner-count').innerText = playerData.miners;
             document.getElementById('miner-cost').innerText = (500 * Math.pow(1.5, playerData.miners)).toFixed(0);
@@ -384,42 +444,33 @@
             document.getElementById('smelter-cost').innerText = (2000 * Math.pow(1.8, playerData.smelters)).toFixed(0);
         }
 
-        function harvestIron() { playerData.iron += playerData.bufferIron; playerData.bufferIron = 0; savePlayerData(); }
+        function harvestIron() { playerData.iron += playerData.bufferIron; playerData.bufferIron = 0; savePlayerData(); showToast("🖐️ 已領取鐵礦到倉庫！"); }
         
         function buyMiner() {
             let cost = 500 * Math.pow(1.5, playerData.miners);
-            if (playerData.cash >= cost) { playerData.cash -= cost; playerData.miners++; savePlayerData(); } 
-            else alert("現金不足！");
-        }
-
-        function craftSteel() {
-            if (playerData.iron >= 2) { playerData.iron -= 2; playerData.steel += 1; savePlayerData(); } 
-            else alert("鐵礦不足 2 噸！");
+            if (playerData.cash >= cost) { playerData.cash -= cost; playerData.miners++; savePlayerData(); showToast("⚡ 採礦機購買成功！"); } 
+            else showToast("❌ 現金不足！");
         }
 
         function buySmelter() {
             let cost = 2000 * Math.pow(1.8, playerData.smelters);
-            if (playerData.cash >= cost) { playerData.cash -= cost; playerData.smelters++; savePlayerData(); } 
-            else alert("現金不足！");
+            if (playerData.cash >= cost) { playerData.cash -= cost; playerData.smelters++; savePlayerData(); showToast("⚡ 自動煉鋼廠購買成功！"); } 
+            else showToast("❌ 現金不足！");
         }
 
-        function craftParts() {
-            if (playerData.steel >= 3) { playerData.steel -= 3; playerData.parts += 1; savePlayerData(); } 
-            else alert("鋼材不足 3 噸！");
-        }
-
-        // 政府 NPC 採購 (低於底價 1%)
+        // 政府 NPC 採購 (-1% 收購，校正傳參 BUG 3)
         function sellToNPC(itemType, qty) {
             let npcUnitPrice = minPrices[itemType] * 0.99;
             if (playerData[itemType] >= qty) {
                 playerData[itemType] -= qty;
-                playerData.cash += npcUnitPrice * qty;
+                let totalIncome = npcUnitPrice * qty;
+                playerData.cash += totalIncome;
                 savePlayerData();
-                alert(`成功折價賣給政府，獲得 $${(npcUnitPrice * qty).toFixed(2)}！`);
-            } else alert("物料庫存不足！");
+                showToast(`💵 成功折價賣給政府，獲得 $${totalIncome.toFixed(2)}！`);
+            } else showToast("❌ 物料庫存不足！");
         }
 
-        // 發布全服賣單
+        // 上架全球交易所
         function postGlobalOrder() {
             let itemType = document.getElementById('sell-item').value;
             let qty = parseFloat(document.getElementById('sell-qty').value);
@@ -428,7 +479,7 @@
             let itemNames = { iron: "⛏️ 鐵礦石", steel: "🏭 鋼材", parts: "⚙️ 機械部件" };
 
             if (price < minPrices[itemType]) {
-                return alert(`價格低於法定底價！${itemNames[itemType]} 最低底價為 $${minPrices[itemType]}`);
+                return showToast(`⚠️ 價格低於法定底價！${itemNames[itemType]} 最低為 $${minPrices[itemType]}`);
             }
 
             if (qty > 0 && price > 0 && playerData[itemType] >= qty) {
@@ -445,8 +496,8 @@
                     timestamp: Date.now()
                 });
 
-                alert("成功上架交易所！");
-            } else alert("庫存不足或輸入數據錯誤！");
+                showToast("📢 成功上架交易所！");
+            } else showToast("❌ 庫存不足或輸入數量錯誤！");
         }
 
         function listenToGlobalMarket() {
@@ -480,7 +531,7 @@
 
         function buyOrder(orderId, itemType, qty, price, sellerUid) {
             let total = qty * price;
-            if (playerData.cash < total) return alert("現金不足！");
+            if (playerData.cash < total) return showToast("❌ 現金不足！");
 
             db.ref('market/' + orderId).remove().then(() => {
                 playerData.cash -= total;
@@ -488,1003 +539,8 @@
                 savePlayerData();
 
                 db.ref('users/' + sellerUid + '/cash').transaction(c => (c || 0) + total);
-                alert("購買成功！");
-            }).catch(() => alert("交易失敗，商品可能已被買走！"));
-        }
-    </script>
-</body>
-</html>
-<body>
-
-    <h2>🌐 自由大亨：全球市場</h2>
-    
-    <!-- 帳號登入 / 註冊區 -->
-    <div id="auth-sec" class="card">
-        <h3 id="auth-title">🔐 企業帳號登入</h3>
-        <input type="email" id="auth-email" placeholder="電子郵件 (Email)"><br>
-        <input type="password" id="auth-pass" placeholder="密碼 (至少 6 位數)"><br>
-        <div id="company-name-box" style="display: none;">
-            <input type="text" id="auth-company" placeholder="企業名稱 (例: 泰坦重工)"><br>
-        </div>
-        <button class="btn btn-success" id="auth-btn" onclick="handleAuth()">登入企業</button>
-        <button class="btn btn-purple" onclick="toggleAuthMode()" id="toggle-btn">切換至：註冊新帳號</button>
-    </div>
-
-    <!-- 遊戲主體內容 -->
-    <div id="game-sec" style="display: none;">
-        
-        <!-- 頂部頁籤導航欄 -->
-        <div class="tab-nav">
-            <button class="tab-btn active" onclick="switchTab('tab-overview')">🏢 企業總覽</button>
-            <button class="tab-btn" onclick="switchTab('tab-production')">🏭 產業生產</button>
-            <button class="tab-btn" onclick="switchTab('tab-market')">🏛️ 全球交易所</button>
-            <button class="tab-btn" onclick="switchTab('tab-wiki')">📖 商業百科</button>
-        </div>
-
-        <!-- 1. 企業總覽頁籤 -->
-        <div id="tab-overview" class="tab-content active">
-            <div class="card" style="background: #252525;">
-                <div class="flex-between">
-                    <div>🏢 <b id="display-name" style="color:#007bff; font-size:1.1em;">-</b></div>
-                    <button class="btn btn-danger" style="font-size:0.7em; padding: 2px 6px;" onclick="logout()">安全登出</button>
-                </div>
-                <hr style="border:0.5px solid #444; margin: 8px 0;">
-                <h4 style="margin:5px 0;">💰 財務與物料資產：</h4>
-                <div class="grid-2">
-                    <div>💵 現金: <b id="cash" style="color: #28a745;">$0</b></div>
-                    <div>⛏️ 鐵礦庫存: <b id="inv-iron">0</b> 噸</div>
-                    <div>🏭 鋼材庫存: <b id="inv-steel">0</b> 噸</div>
-                    <div>⚙️ 機械部件: <b id="inv-parts">0</b> 個</div>
-                </div>
-            </div>
-
-            <!-- NPC 系統保底收購 -->
-            <div class="card">
-                <h3>🏛️ 政府物料採購處 (保底收購)</h3>
-                <p style="font-size:0.85em; color:#aaa;">沒人買？可直接賣給政府獲得急救資金：</p>
-                <div style="font-size:0.9em; line-height: 1.8;">
-                    • 鐵礦保底價: <b>$10</b> / 噸 <button class="btn btn-success" onclick="sellToNPC('iron', 10, 10)">出售 10 噸</button><br>
-                    • 鋼材保底價: <b>$50</b> / 噸 <button class="btn btn-success" onclick="sellToNPC('steel', 50, 5)">出售 5 噸</button><br>
-                    • 機械部件保底價: <b>$250</b> / 個 <button class="btn btn-success" onclick="sellToNPC('parts', 250, 1)">出售 1 個</button>
-                </div>
-            </div>
-        </div>
-
-        <!-- 2. 產業生產頁籤 -->
-        <div id="tab-production" class="tab-content">
-            <div class="card">
-                <h3>🏭 產業鏈與自動化工廠</h3>
-                
-                <!-- 鐵礦採集 -->
-                <div style="border-bottom: 1px solid #333; padding-bottom: 8px; margin-bottom: 8px;">
-                    <div class="flex-between">
-                        <b>⛏️ 露天鐵礦場</b>
-                        <span>自動採礦機: <b id="miner-count">0</b> 台</span>
-                    </div>
-                    <p style="margin: 4px 0; font-size: 0.85em; color: #aaa;">緩衝池: <span id="iron-buf">0.0</span> / 100 噸</p>
-                    <div class="progress-bar"><div id="iron-prog" class="progress-fill"></div></div>
-                    <button class="btn btn-success" onclick="harvestIron()">🖐️ 領取鐵礦到倉庫</button>
-                    <button class="btn btn-warning" onclick="buyMiner()">⚡ 購買採礦機 ($<span id="miner-cost">500</span>)</button>
-                </div>
-
-                <!-- 鋼鐵高爐 -->
-                <div style="border-bottom: 1px solid #333; padding-bottom: 8px; margin-bottom: 8px;">
-                    <div class="flex-between">
-                        <b>🔥 煉鋼高爐</b>
-                        <span>自動煉鋼廠: <b id="smelter-count">0</b> 座</span>
-                    </div>
-                    <p style="margin: 4px 0; font-size: 0.85em; color: #aaa;">配方: 2 噸鐵礦 $\rightarrow$ 1 噸鋼材</p>
-                    <button class="btn btn-purple" onclick="craftSteel()">🔥 手動煉鋼 (消耗 2 鐵礦)</button>
-                    <button class="btn btn-warning" onclick="buySmelter()">⚡ 購買自動煉鋼廠 ($<span id="smelter-cost">2000</span>)</button>
-                </div>
-
-                <!-- 高級機械廠 -->
-                <div>
-                    <div class="flex-between">
-                        <b>⚙️ 精密機械廠</b>
-                    </div>
-                    <p style="margin: 4px 0; font-size: 0.85em; color: #aaa;">配方: 3 噸鋼材 $\rightarrow$ 1 個機械部件</p>
-                    <button class="btn btn-purple" onclick="craftParts()">⚙️ 製造機械部件 (消耗 3 鋼材)</button>
-                </div>
-            </div>
-        </div>
-
-        <!-- 3. 全球交易所頁籤 -->
-        <div id="tab-market" class="tab-content">
-            <div class="card">
-                <h3>🏛️ 全球玩家即時交易所</h3>
-                <p style="margin:2px 0; font-size:0.85em; color:#aaa;">發布賣單至大盤（受最低底價限制）：</p>
-                <div class="grid-2">
-                    <select id="sell-item">
-                        <option value="iron">⛏️ 鐵礦石 (底價 $10)</option>
-                        <option value="steel">🏭 鋼材 (底價 $50)</option>
-                        <option value="parts">⚙️ 機械部件 (底價 $250)</option>
-                    </select>
-                    <input type="number" id="sell-qty" placeholder="數量">
-                </div>
-                <input type="number" id="sell-price" placeholder="單件價格 ($)">
-                <button class="btn btn-warning" style="width:100%; margin-top:5px;" onclick="postGlobalOrder()">上架交易所</button>
-
-                <h4 style="margin-bottom: 5px;">📢 全服線上掛單列表</h4>
-                <table>
-                    <thead>
-                        <tr><th>賣家企業</th><th>物料</th><th>數量</th><th>單價</th><th>操作</th></tr>
-                    </thead>
-                    <tbody id="global-market-list">
-                        <tr><td colspan="5">連線資料庫中...</td></tr>
-                    </tbody>
-                </table>
-            </div>
-        </div>
-
-        <!-- 4. 商業百科 (Wiki) 頁籤 -->
-        <div id="tab-wiki" class="tab-content">
-            <div class="card">
-                <h3>📖 商業百科與指南 (Wiki)</h3>
-                
-                <h4>1. 產品供應鏈與底價規範</h4>
-                <table>
-                    <thead>
-                        <tr><th>物料</th><th>合成配方</th><th>最低底價</th><th>政府保底價</th></tr>
-                    </thead>
-                    <tbody>
-                        <tr><td>⛏️ 鐵礦石</td><td>露天採礦場產出</td><td>$10 / 噸</td><td>$10 / 噸</td></tr>
-                        <tr><td>🏭 鋼材</td><td>2 噸鐵礦石</td><td>$50 / 噸</td><td>$50 / 噸</td></tr>
-                        <tr><td>⚙️ 機械部件</td><td>3 噸鋼材</td><td>$250 / 個</td><td>$250 / 個</td></tr>
-                    </tbody>
-                </table>
-
-                <h4 style="margin-top:15px;">2. 自動化設備說明</h4>
-                <p>• <b>自動採礦機</b>：每台每秒自動產出 1 噸鐵礦至緩衝池。<br>
-                • <b>自動煉鋼廠</b>：每座每秒自動消耗 2 噸鐵礦並熔煉為 1 噸鋼材。</p>
-
-                <h4 style="margin-top:15px;">3. 市場交易規則</h4>
-                <p>• 玩家可以自由決定價格上架至交易所，但不可低於「最低底價」。<br>
-                • 若交易所暫無其他玩家購買，可隨時利用「政府物料採購處」快速變現。</p>
-            </div>
-        </div>
-
-    </div>
-
-    <script>
-        // Firebase 設定
-        const firebaseConfig = {
-            apiKey: "AIzaSyA8GiYixLGmW73CYg340D5xJTu_15SYlFA",
-            authDomain: "tycoon-horizon-85f43.firebaseapp.com",
-            databaseURL: "https://tycoon-horizon-85f43-default-rtdb.firebaseio.com",
-            projectId: "tycoon-horizon-85f43",
-            storageBucket: "tycoon-horizon-85f43.firebasestorage.app",
-            messagingSenderId: "808593962056",
-            appId: "1:808593962056:web:e015411fc7f4f3e76d547d",
-            measurementId: "G-9D863R525T"
-        };
-
-        firebase.initializeApp(firebaseConfig);
-        const auth = firebase.auth();
-        const db = firebase.database();
-
-        let isSignUpMode = false;
-        let currentUser = null;
-        let playerData = {
-            companyName: "",
-            cash: 1000,
-            iron: 0,
-            steel: 0,
-            parts: 0,
-            bufferIron: 0,
-            miners: 0,
-            smelters: 0
-        };
-        let lastTime = Date.now();
-
-        // 最低底價設定
-        const minPrices = { iron: 10, steel: 50, parts: 250 };
-
-        // 頁籤切換邏輯
-        function switchTab(tabId) {
-            document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
-            document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
-            
-            event.target.classList.add('active');
-            document.getElementById(tabId).classList.add('active');
-        }
-
-        // 監聽 Firebase 帳號驗證狀態
-        auth.onAuthStateChanged(user => {
-            if (user) {
-                currentUser = user;
-                db.ref('users/' + user.uid).on('value', snapshot => {
-                    if (snapshot.exists()) {
-                        playerData = { ...playerData, ...snapshot.val() };
-                        document.getElementById('display-name').innerText = playerData.companyName || "未命名企業";
-                        document.getElementById('auth-sec').style.display = 'none';
-                        document.getElementById('game-sec').style.display = 'block';
-                    }
-                });
-                startGameLoop();
-                listenToGlobalMarket();
-            } else {
-                currentUser = null;
-                document.getElementById('auth-sec').style.display = 'block';
-                document.getElementById('game-sec').style.display = 'none';
-            }
-        });
-
-        function toggleAuthMode() {
-            isSignUpMode = !isSignUpMode;
-            document.getElementById('auth-title').innerText = isSignUpMode ? "📝 註冊新企業帳號" : "🔐 企業帳號登入";
-            document.getElementById('auth-btn').innerText = isSignUpMode ? "註冊" : "登入";
-            document.getElementById('toggle-btn').innerText = isSignUpMode ? "切換至：登入帳號" : "切換至：註冊新帳號";
-            document.getElementById('company-name-box').style.display = isSignUpMode ? "block" : "none";
-        }
-
-        function handleAuth() {
-            let email = document.getElementById('auth-email').value.trim();
-            let pass = document.getElementById('auth-pass').value.trim();
-            if (!email || !pass) return alert("請填寫 Email 與密碼！");
-
-            if (isSignUpMode) {
-                let company = document.getElementById('auth-company').value.trim();
-                if (!company) return alert("請輸入企業名稱！");
-                auth.createUserWithEmailAndPassword(email, pass).then(cred => {
-                    playerData.companyName = company;
-                    savePlayerData();
-                }).catch(err => alert("註冊失敗: " + err.message));
-            } else {
-                auth.signInWithEmailAndPassword(email, pass).catch(err => alert("登入失敗: " + err.message));
-            }
-        }
-
-        function logout() {
-            auth.signOut();
-            location.reload();
-        }
-
-        function savePlayerData() {
-            if (currentUser) db.ref('users/' + currentUser.uid).set(playerData);
-        }
-
-        // 遊戲主循環
-        function startGameLoop() {
-            setInterval(() => {
-                let now = Date.now();
-                let dt = (now - lastTime) / 1000;
-                lastTime = now;
-
-                let ironGen = (1 + playerData.miners * 1) * dt;
-                if (playerData.bufferIron < 100) {
-                    playerData.bufferIron = Math.min(100, playerData.bufferIron + ironGen);
-                }
-
-                if (playerData.smelters > 0 && playerData.iron >= playerData.smelters * 2 * dt) {
-                    playerData.iron -= playerData.smelters * 2 * dt;
-                    playerData.steel += playerData.smelters * 1 * dt;
-                }
-
-                updateUI();
-            }, 100);
-
-            setInterval(savePlayerData, 5000);
-        }
-
-        function updateUI() {
-            document.getElementById('cash').innerText = '$' + Math.floor(playerData.cash).toLocaleString();
-            document.getElementById('inv-iron').innerText = playerData.iron.toFixed(1);
-            document.getElementById('inv-steel').innerText = playerData.steel.toFixed(1);
-            document.getElementById('inv-parts').innerText = Math.floor(playerData.parts);
-
-            document.getElementById('iron-buf').innerText = playerData.bufferIron.toFixed(1);
-            document.getElementById('iron-prog').style.width = (playerData.bufferIron / 100 * 100) + '%';
-            
-            document.getElementById('miner-count').innerText = playerData.miners;
-            document.getElementById('miner-cost').innerText = (500 * Math.pow(1.5, playerData.miners)).toFixed(0);
-
-            document.getElementById('smelter-count').innerText = playerData.smelters;
-            document.getElementById('smelter-cost').innerText = (2000 * Math.pow(1.8, playerData.smelters)).toFixed(0);
-        }
-
-        function harvestIron() { playerData.iron += playerData.bufferIron; playerData.bufferIron = 0; savePlayerData(); }
-        
-        function buyMiner() {
-            let cost = 500 * Math.pow(1.5, playerData.miners);
-            if (playerData.cash >= cost) { playerData.cash -= cost; playerData.miners++; savePlayerData(); } 
-            else alert("現金不足！");
-        }
-
-        function craftSteel() {
-            if (playerData.iron >= 2) { playerData.iron -= 2; playerData.steel += 1; savePlayerData(); } 
-            else alert("鐵礦不足 2 噸！");
-        }
-
-        function buySmelter() {
-            let cost = 2000 * Math.pow(1.8, playerData.smelters);
-            if (playerData.cash >= cost) { playerData.cash -= cost; playerData.smelters++; savePlayerData(); } 
-            else alert("現金不足！");
-        }
-
-        function craftParts() {
-            if (playerData.steel >= 3) { playerData.steel -= 3; playerData.parts += 1; savePlayerData(); } 
-            else alert("鋼材不足 3 噸！");
-        }
-
-        // 政府 NPC 保底收購邏輯
-        function sellToNPC(itemType, unitPrice, qty) {
-            if (playerData[itemType] >= qty) {
-                playerData[itemType] -= qty;
-                playerData.cash += unitPrice * qty;
-                savePlayerData();
-                alert(`成功出售給政府，獲得 $${unitPrice * qty}！`);
-            } else alert("物料庫存不足！");
-        }
-
-        // 發布全球賣單 (含底價檢查)
-        function postGlobalOrder() {
-            let itemType = document.getElementById('sell-item').value;
-            let qty = parseFloat(document.getElementById('sell-qty').value);
-            let price = parseFloat(document.getElementById('sell-price').value);
-
-            let itemNames = { iron: "⛏️ 鐵礦石", steel: "🏭 鋼材", parts: "⚙️ 機械部件" };
-
-            if (price < minPrices[itemType]) {
-                return alert(`價格過低！${itemNames[itemType]} 的最低底價為 $${minPrices[itemType]}`);
-            }
-
-            if (qty > 0 && price > 0 && playerData[itemType] >= qty) {
-                playerData[itemType] -= qty;
-                savePlayerData();
-
-                db.ref('market').push({
-                    sellerUid: currentUser.uid,
-                    sellerName: playerData.companyName,
-                    itemType: itemType,
-                    itemName: itemNames[itemType],
-                    qty: qty,
-                    price: price,
-                    timestamp: Date.now()
-                });
-
-                alert("成功上架交易所！");
-            } else alert("庫存不足或輸入數據錯誤！");
-        }
-
-        function listenToGlobalMarket() {
-            db.ref('market').on('value', snapshot => {
-                let tbody = document.getElementById('global-market-list');
-                tbody.innerHTML = '';
-                let data = snapshot.val();
-
-                if (!data) {
-                    tbody.innerHTML = '<tr><td colspan="5">市場上暫無賣單</td></tr>';
-                    return;
-                }
-
-                Object.keys(data).forEach(key => {
-                    let ord = data[key];
-                    let isMine = ord.sellerUid === currentUser.uid;
-                    tbody.innerHTML += `
-                        <tr>
-                            <td><b>${ord.sellerName}</b> ${isMine ? '(我)' : ''}</td>
-                            <td>${ord.itemName}</td>
-                            <td>${ord.qty}</td>
-                            <td>$${ord.price}</td>
-                            <td>
-                                ${isMine ? '<span style="color:#aaa;">我的賣單</span>' : `<button class="btn btn-success" onclick="buyOrder('${key}', '${ord.itemType}',${ord.qty}, ${ord.price}, '${ord.sellerUid}')">購買</button>`}
-                            </td>
-                        </tr>
-                    `;
-                });
-            });
-        }
-
-        function buyOrder(orderId, itemType, qty, price, sellerUid) {
-            let total = qty * price;
-            if (playerData.cash < total) return alert("現金不足！");
-
-            db.ref('market/' + orderId).remove().then(() => {
-                playerData.cash -= total;
-                playerData[itemType] += qty;
-                savePlayerData();
-
-                db.ref('users/' + sellerUid + '/cash').transaction(c => (c || 0) + total);
-                alert("購買成功！");
-            }).catch(() => alert("交易失敗，商品可能已被買走！"));
-        }
-    </script>
-</body>
-</html>
-        <input type="email" id="auth-email" placeholder="電子郵件 (Email)"><br>
-        <input type="password" id="auth-pass" placeholder="密碼 (至少 6 位數)"><br>
-        <div id="company-name-box" style="display: none;">
-            <input type="text" id="auth-company" placeholder="企業名稱 (例: 泰坦重工)"><br>
-        </div>
-        <button class="btn btn-success" id="auth-btn" onclick="handleAuth()">登入企業</button>
-        <button class="btn btn-purple" onclick="toggleAuthMode()" id="toggle-btn">切換至：註冊新帳號</button>
-    </div>
-
-    <!-- 遊戲主體內容 -->
-    <div id="game-sec" style="display: none;">
-        <!-- 企業儀表板 -->
-        <div class="card" style="background: #252525;">
-            <div class="flex-between">
-                <div>🏢 <b id="display-name" style="color:#007bff;">-</b> <span id="display-level" style="color:#ffc107; font-size:0.8em;">(Lv.1)</span></div>
-                <button class="btn btn-danger" style="font-size:0.7em; padding: 2px 6px;" onclick="logout()">安全登出</button>
-            </div>
-            <hr style="border:0.5px solid #444; margin: 8px 0;">
-            <div class="grid-2">
-                <div>💵 現金: <b id="cash" style="color: #28a745;">$0</b></div>
-                <div>⛏️ 鐵礦: <b id="inv-iron">0</b> 噸</div>
-                <div>🏭 鋼材: <b id="inv-steel">0</b> 噸</div>
-                <div>⚙️ 機械部件: <b id="inv-parts">0</b> 個</div>
-            </div>
-        </div>
-
-        <!-- 產業生產與加工區 -->
-        <div class="card">
-            <h3>🏭 產業鏈與自動化工廠</h3>
-            
-            <!-- 鐵礦採集 -->
-            <div style="border-bottom: 1px solid #333; padding-bottom: 8px; margin-bottom: 8px;">
-                <div class="flex-between">
-                    <b>⛏️ 露天鐵礦場</b>
-                    <span>自動採礦機: <b id="miner-count">0</b> 台</span>
-                </div>
-                <p style="margin: 4px 0; font-size: 0.85em; color: #aaa;">緩衝池: <span id="iron-buf">0.0</span> / 100 噸</p>
-                <div class="progress-bar"><div id="iron-prog" class="progress-fill"></div></div>
-                <button class="btn btn-success" onclick="harvestIron()">🖐️ 領取鐵礦到倉庫</button>
-                <button class="btn btn-warning" onclick="buyMiner()">⚡ 購買採礦機 ($<span id="miner-cost">500</span>)</button>
-            </div>
-
-            <!-- 鋼鐵高爐 -->
-            <div style="border-bottom: 1px solid #333; padding-bottom: 8px; margin-bottom: 8px;">
-                <div class="flex-between">
-                    <b>🔥 煉鋼高爐</b>
-                    <span>自動煉鋼廠: <b id="smelter-count">0</b> 座</span>
-                </div>
-                <p style="margin: 4px 0; font-size: 0.85em; color: #aaa;">配方: 2 噸鐵礦 $\rightarrow$ 1 噸鋼材</p>
-                <button class="btn btn-purple" onclick="craftSteel()">🔥 手動煉鋼 (消耗 2 鐵礦)</button>
-                <button class="btn btn-warning" onclick="buySmelter()">⚡ 購買自動煉鋼廠 ($<span id="smelter-cost">2000</span>)</button>
-            </div>
-
-            <!-- 高級機械廠 -->
-            <div>
-                <div class="flex-between">
-                    <b>⚙️ 精密機械廠</b>
-                </div>
-                <p style="margin: 4px 0; font-size: 0.85em; color: #aaa;">配方: 3 噸鋼材 $\rightarrow$ 1 個機械部件 (高價值物料)</p>
-                <button class="btn btn-purple" onclick="craftParts()">⚙️ 製造機械部件 (消耗 3 鋼材)</button>
-            </div>
-        </div>
-
-        <!-- 全球玩家線上交易市場 -->
-        <div class="card">
-            <h3>🏛️ 全球玩家即時交易所</h3>
-            <p style="margin:2px 0; font-size:0.85em; color:#aaa;">發布賣單到全球雲端大盤：</p>
-            <div class="grid-2">
-                <select id="sell-item" style="background:#2a2a2a; color:#fff; border:1px solid #444; padding:6px; border-radius:4px;">
-                    <option value="iron">⛏️ 鐵礦石</option>
-                    <option value="steel">🏭 鋼材</option>
-                    <option value="parts">⚙️ 機械部件</option>
-                </select>
-                <input type="number" id="sell-qty" placeholder="數量">
-            </div>
-            <input type="number" id="sell-price" placeholder="單件價格 ($)">
-            <button class="btn btn-warning" style="width:100%; margin-top:5px;" onclick="postGlobalOrder()">上架全球交易所</button>
-
-            <h4 style="margin-bottom: 5px;">📢 全服線上掛單列表</h4>
-            <table>
-                <thead>
-                    <tr><th>賣家企業</th><th>物料</th><th>數量</th><th>單價</th><th>操作</th></tr>
-                </thead>
-                <tbody id="global-market-list">
-                    <tr><td colspan="5">連線資料庫中...</td></tr>
-                </tbody>
-            </table>
-        </div>
-    </div>
-
-    <script>
-        // Firebase 設定
-        const firebaseConfig = {
-            apiKey: "AIzaSyA8GiYixLGmW73CYg340D5xJTu_15SYlFA",
-            authDomain: "tycoon-horizon-85f43.firebaseapp.com",
-            databaseURL: "https://tycoon-horizon-85f43-default-rtdb.firebaseio.com",
-            projectId: "tycoon-horizon-85f43",
-            storageBucket: "tycoon-horizon-85f43.firebasestorage.app",
-            messagingSenderId: "808593962056",
-            appId: "1:808593962056:web:e015411fc7f4f3e76d547d",
-            measurementId: "G-9D863R525T"
-        };
-
-        firebase.initializeApp(firebaseConfig);
-        const auth = firebase.auth();
-        const db = firebase.database();
-
-        let isSignUpMode = false;
-        let currentUser = null;
-        let playerData = {
-            companyName: "",
-            cash: 1000,
-            iron: 0,
-            steel: 0,
-            parts: 0,
-            bufferIron: 0,
-            miners: 0,
-            smelters: 0
-        };
-        let lastTime = Date.now();
-
-        // 監聽 Firebase 帳號驗證狀態
-        auth.onAuthStateChanged(user => {
-            if (user) {
-                currentUser = user;
-                // 載入玩家資料
-                db.ref('users/' + user.uid).on('value', snapshot => {
-                    if (snapshot.exists()) {
-                        let data = snapshot.val();
-                        playerData = { ...playerData, ...data };
-                        document.getElementById('display-name').innerText = playerData.companyName || "未命名企業";
-                        document.getElementById('auth-sec').style.display = 'none';
-                        document.getElementById('game-sec').style.display = 'block';
-                    }
-                });
-                startGameLoop();
-                listenToGlobalMarket();
-            } else {
-                currentUser = null;
-                document.getElementById('auth-sec').style.display = 'block';
-                document.getElementById('game-sec').style.display = 'none';
-            }
-        });
-
-        // 切換 登入 / 註冊 模式
-        function toggleAuthMode() {
-            isSignUpMode = !isSignUpMode;
-            document.getElementById('auth-title').innerText = isSignUpMode ? "📝 註冊新企業帳號" : "🔐 企業帳號登入";
-            document.getElementById('auth-btn').innerText = isSignUpMode ? "立即註冊" : "登入企業";
-            document.getElementById('toggle-btn').innerText = isSignUpMode ? "切換至：登入帳號" : "切換至：註冊新帳號";
-            document.getElementById('company-name-box').style.display = isSignUpMode ? "block" : "none";
-        }
-
-        // 處理登入/註冊
-        function handleAuth() {
-            let email = document.getElementById('auth-email').value.trim();
-            let pass = document.getElementById('auth-pass').value.trim();
-
-            if (!email || !pass) return alert("請填寫 Email 與密碼！");
-
-            if (isSignUpMode) {
-                let company = document.getElementById('auth-company').value.trim();
-                if (!company) return alert("請輸入企業名稱！");
-
-                auth.createUserWithEmailAndPassword(email, pass).then(cred => {
-                    playerData.companyName = company;
-                    savePlayerData();
-                }).catch(err => alert("註冊失敗: " + err.message));
-            } else {
-                auth.signInWithEmailAndPassword(email, pass).catch(err => alert("登入失敗: " + err.message));
-            }
-        }
-
-        function logout() {
-            auth.signOut();
-            location.reload();
-        }
-
-        function savePlayerData() {
-            if (currentUser) {
-                db.ref('users/' + currentUser.uid).set(playerData);
-            }
-        }
-
-        // 遊戲主循環
-        function startGameLoop() {
-            setInterval(() => {
-                let now = Date.now();
-                let dt = (now - lastTime) / 1000;
-                lastTime = now;
-
-                // 採礦機產能 (每台每秒 +1 鐵礦)
-                let ironGen = (1 + playerData.miners * 1) * dt;
-                if (playerData.bufferIron < 100) {
-                    playerData.bufferIron = Math.min(100, playerData.bufferIron + ironGen);
-                }
-
-                // 自動煉鋼廠 (每座每秒消耗 2 鐵礦 產出 1 鋼材)
-                if (playerData.smelters > 0 && playerData.iron >= playerData.smelters * 2 * dt) {
-                    playerData.iron -= playerData.smelters * 2 * dt;
-                    playerData.steel += playerData.smelters * 1 * dt;
-                }
-
-                updateUI();
-            }, 100);
-
-            setInterval(savePlayerData, 5000); // 每 5 秒雲端存檔
-        }
-
-        function updateUI() {
-            document.getElementById('cash').innerText = '$' + Math.floor(playerData.cash).toLocaleString();
-            document.getElementById('inv-iron').innerText = playerData.iron.toFixed(1);
-            document.getElementById('inv-steel').innerText = playerData.steel.toFixed(1);
-            document.getElementById('inv-parts').innerText = Math.floor(playerData.parts);
-
-            document.getElementById('iron-buf').innerText = playerData.bufferIron.toFixed(1);
-            document.getElementById('iron-prog').style.width = (playerData.bufferIron / 100 * 100) + '%';
-            
-            document.getElementById('miner-count').innerText = playerData.miners;
-            document.getElementById('miner-cost').innerText = (500 * Math.pow(1.5, playerData.miners)).toFixed(0);
-
-            document.getElementById('smelter-count').innerText = playerData.smelters;
-            document.getElementById('smelter-cost').innerText = (2000 * Math.pow(1.8, playerData.smelters)).toFixed(0);
-        }
-
-        // 動作邏輯
-        function harvestIron() {
-            playerData.iron += playerData.bufferIron;
-            playerData.bufferIron = 0;
-            savePlayerData();
-        }
-
-        function buyMiner() {
-            let cost = 500 * Math.pow(1.5, playerData.miners);
-            if (playerData.cash >= cost) {
-                playerData.cash -= cost;
-                playerData.miners++;
-                savePlayerData();
-            } else alert("現金不足！");
-        }
-
-        function craftSteel() {
-            if (playerData.iron >= 2) {
-                playerData.iron -= 2;
-                playerData.steel += 1;
-                savePlayerData();
-            } else alert("鐵礦不足 2 噸！");
-        }
-
-        function buySmelter() {
-            let cost = 2000 * Math.pow(1.8, playerData.smelters);
-            if (playerData.cash >= cost) {
-                playerData.cash -= cost;
-                playerData.smelters++;
-                savePlayerData();
-            } else alert("現金不足！");
-        }
-
-        function craftParts() {
-            if (playerData.steel >= 3) {
-                playerData.steel -= 3;
-                playerData.parts += 1;
-                savePlayerData();
-            } else alert("鋼材不足 3 噸！");
-        }
-
-        // 交易市場
-        function postGlobalOrder() {
-            let itemType = document.getElementById('sell-item').value;
-            let qty = parseFloat(document.getElementById('sell-qty').value);
-            let price = parseFloat(document.getElementById('sell-price').value);
-
-            let itemNames = { iron: "⛏️ 鐵礦石", steel: "🏭 鋼材", parts: "⚙️ 機械部件" };
-
-            if (qty > 0 && price > 0 && playerData[itemType] >= qty) {
-                playerData[itemType] -= qty;
-                savePlayerData();
-
-                db.ref('market').push({
-                    sellerUid: currentUser.uid,
-                    sellerName: playerData.companyName,
-                    itemType: itemType,
-                    itemName: itemNames[itemType],
-                    qty: qty,
-                    price: price,
-                    timestamp: Date.now()
-                });
-
-                alert("成功上架全球交易所！");
-            } else alert("庫存不足或輸入數據錯誤！");
-        }
-
-        function listenToGlobalMarket() {
-            db.ref('market').on('value', snapshot => {
-                let tbody = document.getElementById('global-market-list');
-                tbody.innerHTML = '';
-                let data = snapshot.val();
-
-                if (!data) {
-                    tbody.innerHTML = '<tr><td colspan="5">市場上暫無賣單</td></tr>';
-                    return;
-                }
-
-                Object.keys(data).forEach(key => {
-                    let ord = data[key];
-                    let isMine = ord.sellerUid === currentUser.uid;
-                    tbody.innerHTML += `
-                        <tr>
-                            <td><b>${ord.sellerName}</b> ${isMine ? '(我)' : ''}</td>
-                            <td>${ord.itemName}</td>
-                            <td>${ord.qty}</td>
-                            <td>$${ord.price}</td>
-                            <td>
-                                ${isMine ? '<span style="color:#aaa;">我的賣單</span>' : `<button class="btn btn-success" onclick="buyOrder('${key}', '${ord.itemType}',${ord.qty}, ${ord.price}, '${ord.sellerUid}')">購買</button>`}
-                            </td>
-                        </tr>
-                    `;
-                });
-            });
-        }
-
-        function buyOrder(orderId, itemType, qty, price, sellerUid) {
-            let total = qty * price;
-            if (playerData.cash < total) return alert("現金不足！");
-
-            db.ref('market/' + orderId).remove().then(() => {
-                playerData.cash -= total;
-                playerData[itemType] += qty;
-                savePlayerData();
-
-                // 轉帳給賣家
-                db.ref('users/' + sellerUid + '/cash').transaction(c => (c || 0) + total);
-                alert("購買成功！");
-            }).catch(() => alert("交易失敗，商品可能已被買走！"));
-        }
-    </script>
-</body>
-</html>
-
-    <!-- 遊戲主體內容 -->
-    <div id="game-sec" style="display: none;">
-        <div class="card" style="background: #252525;">
-            <div>
-                企業: <b id="display-name" style="color:#007bff;">-</b> 
-                <button class="btn btn-danger" style="font-size:0.7em; padding: 2px 6px; float: right;" onclick="logout()">登出/切換企業</button>
-            </div>
-            <div style="margin-top: 8px;">
-                💵 現金: <b id="cash" style="color: #28a745;">$0.00</b> | 
-                ⛏️ 倉庫鐵礦: <b id="inv-iron">0</b> 噸
-            </div>
-            <div style="margin-top: 5px;">
-                <span id="sync-status" class="status-badge" style="color: #28a745;">☁️ 雲端自動同步中</span>
-            </div>
-        </div>
-
-        <!-- 產業生產區 -->
-        <div class="card">
-            <h3>⛏️ 露天鐵礦場 (手動高頻採集)</h3>
-            <p>緩衝池: <span id="iron-buf">0.0</span> / 100 噸</p>
-            <div class="progress-bar"><div id="iron-prog" class="progress-fill"></div></div>
-            <button class="btn btn-success" onclick="harvestIron()">🖐️ 手動領取至倉庫</button>
-        </div>
-
-        <!-- 全球玩家線上交易市場 -->
-        <div class="card">
-            <h3>🏛️ 全球玩家即時交易市場 (Realtime Market)</h3>
-            <p>發布賣單到全球雲端大盤：</p>
-            <input type="number" id="sell-qty" placeholder="出售數量 (噸)">
-            <input type="number" id="sell-price" placeholder="單價 ($)">
-            <button class="btn btn-warning" onclick="postGlobalOrder()">掛單上架至雲端</button>
-
-            <h4>📢 全服線上掛單列表</h4>
-            <table>
-                <thead>
-                    <tr><th>賣家企業</th><th>物料</th><th>數量</th><th>單價</th><th>操作</th></tr>
-                </thead>
-                <tbody id="global-market-list">
-                    <tr><td colspan="5">正在連接全球伺服器...</td></tr>
-                </tbody>
-            </table>
-        </div>
-    </div>
-
-    <script>
-        // 你的專屬 Firebase 設定
-        const firebaseConfig = {
-            apiKey: "AIzaSyA8GiYixLGmW73CYg340D5xJTu_15SYlFA",
-            authDomain: "tycoon-horizon-85f43.firebaseapp.com",
-            databaseURL: "https://tycoon-horizon-85f43-default-rtdb.firebaseio.com",
-            projectId: "tycoon-horizon-85f43",
-            storageBucket: "tycoon-horizon-85f43.firebasestorage.app",
-            messagingSenderId: "808593962056",
-            appId: "1:808593962056:web:e015411fc7f4f3e76d547d",
-            measurementId: "G-9D863R525T"
-        };
-
-        // 初始化 Firebase
-        firebase.initializeApp(firebaseConfig);
-        const db = firebase.database();
-
-        let myCompanyName = "";
-        let playerKey = ""; // Firebase 相容安全 Key
-        let playerData = { cash: 50000, iron: 0, bufferIron: 0 };
-        let lastTime = Date.now();
-
-        // 頁面載入時自動檢查是否有本地登入紀錄
-        window.onload = function() {
-            let savedCompany = localStorage.getItem('tycoon_company_name');
-            if (savedCompany) {
-                document.getElementById('company-name-input').value = savedCompany;
-                login();
-            }
-        };
-
-        // 安全轉換字元作為 Firebase 節點 Key
-        function encodeKey(str) {
-            return encodeURIComponent(str).replace(/\./g, '%2E');
-        }
-
-        // 登入 / 載入專屬企業存檔
-        function login() {
-            let name = document.getElementById('company-name-input').value.trim();
-            if (!name) return alert("請輸入企業名稱！");
-            
-            myCompanyName = name;
-            playerKey = encodeKey(name);
-
-            // 將企業名稱儲存在手機本地記憶庫 (自動登入)
-            localStorage.setItem('tycoon_company_name', myCompanyName);
-
-            // 從雲端載入數據或建立新帳號
-            db.ref('players/' + playerKey).once('value', snapshot => {
-                if (snapshot.exists()) {
-                    let cloudData = snapshot.val();
-                    playerData.cash = cloudData.cash !== undefined ? cloudData.cash : 50000;
-                    playerData.iron = cloudData.iron !== undefined ? cloudData.iron : 0;
-                    playerData.bufferIron = cloudData.bufferIron !== undefined ? cloudData.bufferIron : 0;
-                } else {
-                    savePlayerData(); // 新企業初始化存檔
-                }
-
-                document.getElementById('display-name').innerText = myCompanyName;
-                document.getElementById('login-sec').style.display = 'none';
-                document.getElementById('game-sec').style.display = 'block';
-
-                startGameLoop();
-                listenToGlobalMarket();
-                listenToMyPlayerChanges();
-            });
-        }
-
-        // 登出/切換企業
-        function logout() {
-            if (confirm("確定要登出並切換企業嗎？")) {
-                localStorage.removeItem('tycoon_company_name');
-                location.reload();
-            }
-        }
-
-        // 保存玩家數據至 Firebase
-        function savePlayerData() {
-            if (playerKey) {
-                db.ref('players/' + playerKey).set({
-                    companyName: myCompanyName,
-                    cash: playerData.cash,
-                    iron: playerData.iron,
-                    bufferIron: playerData.bufferIron,
-                    lastUpdated: Date.now()
-                });
-            }
-        }
-
-        // 監聽自身資料變動 (例如收到別的玩家給的交易款項)
-        function listenToMyPlayerChanges() {
-            db.ref('players/' + playerKey).on('value', snapshot => {
-                if (snapshot.exists()) {
-                    let data = snapshot.val();
-                    playerData.cash = data.cash;
-                    playerData.iron = data.iron;
-                    updateUI();
-                }
-            });
-        }
-
-        // 遊戲主循環 (產能計算與UI更新)
-        function startGameLoop() {
-            setInterval(() => {
-                let now = Date.now();
-                let dt = (now - lastTime) / 1000;
-                lastTime = now;
-
-                // 鐵礦緩衝池累積
-                if (playerData.bufferIron < 100) {
-                    playerData.bufferIron = Math.min(100, playerData.bufferIron + 2.0 * dt);
-                }
-
-                updateUI();
-            }, 100);
-
-            // 每 3 秒自動定期儲存雲端存檔
-            setInterval(savePlayerData, 3000);
-        }
-
-        function updateUI() {
-            document.getElementById('cash').innerText = '$' + playerData.cash.toFixed(2);
-            document.getElementById('inv-iron').innerText = playerData.iron.toFixed(1);
-            document.getElementById('iron-buf').innerText = playerData.bufferIron.toFixed(1);
-            document.getElementById('iron-prog').style.width = (playerData.bufferIron / 100 * 100) + '%';
-        }
-
-        function harvestIron() {
-            playerData.iron += playerData.bufferIron;
-            playerData.bufferIron = 0;
-            savePlayerData(); // 立即同步至雲端
-        }
-
-        // 發布賣單到全球雲端資料庫
-        function postGlobalOrder() {
-            let qty = parseFloat(document.getElementById('sell-qty').value);
-            let price = parseFloat(document.getElementById('sell-price').value);
-
-            if (qty > 0 && price > 0 && playerData.iron >= qty) {
-                playerData.iron -= qty;
-                savePlayerData(); // 扣除物料並存檔
-
-                // 推送至 Firebase 雲端市場
-                db.ref('market').push({
-                    seller: myCompanyName,
-                    sellerKey: playerKey,
-                    item: "⛏️ 鐵礦石",
-                    qty: qty,
-                    price: price,
-                    timestamp: Date.now()
-                });
-
-                document.getElementById('sell-qty').value = '';
-                document.getElementById('sell-price').value = '';
-                alert("成功掛單至全球市場！");
-            } else {
-                alert("鐵礦庫存不足或輸入數據錯誤！");
-            }
-        }
-
-        // 監聽全服市場資料變更 (即時同步)
-        function listenToGlobalMarket() {
-            db.ref('market').on('value', snapshot => {
-                let tbody = document.getElementById('global-market-list');
-                tbody.innerHTML = '';
-                let data = snapshot.val();
-
-                if (!data) {
-                    tbody.innerHTML = '<tr><td colspan="5">目前市場上無任何賣單，快來成為第一個賣家！</td></tr>';
-                    return;
-                }
-
-                Object.keys(data).forEach(key => {
-                    let ord = data[key];
-                    let isMine = ord.sellerKey === playerKey || ord.seller === myCompanyName;
-                    tbody.innerHTML += `
-                        <tr>
-                            <td><b>${ord.seller}</b> ${isMine ? '(我)' : ''}</td>
-                            <td>${ord.item}</td>
-                            <td>${ord.qty} 噸</td>
-                            <td>$${ord.price.toFixed(2)}</td>
-                            <td>
-                                ${isMine ? '<span style="color:#aaa;">我的掛單</span>' : `<button class="btn btn-success" onclick="buyGlobalOrder('${key}',${ord.qty}, ${ord.price}, '${ord.sellerKey}')">購買</button>`}
-                            </td>
-                        </tr>
-                    `;
-                });
-            });
-        }
-
-        // 跨玩家即時購買交易
-        function buyGlobalOrder(orderId, qty, price, sellerKey) {
-            let totalCost = qty * price;
-            if (playerData.cash < totalCost) return alert("現金不足，無法購買！");
-
-            // 從市場移除訂單並進行扣款/加物料
-            db.ref('market/' + orderId).remove().then(() => {
-                playerData.cash -= totalCost;
-                playerData.iron += qty;
-                savePlayerData();
-
-                // 將資金劃轉給賣家（更新賣家雲端帳號）
-                db.ref('players/' + sellerKey + '/cash').transaction(currentCash => {
-                    return (currentCash || 0) + totalCost;
-                });
-
-                alert(`成功購買了 ${qty} 噸鐵礦石！資金已自動轉給賣家。`);
-            }).catch(() => {
-                alert("手慢了！該商品已被其他玩家搶先買走！");
-            });
+                showToast("🛒 購買成功！商品已存入倉庫。");
+            }).catch(() => showToast("❌ 交易失敗，商品可能已被買走！"));
         }
     </script>
 </body>
