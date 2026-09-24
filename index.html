@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>自由大亨：全球市場 - 完整擴充版v2</title>
+    <title>自由大亨：全球市場 - v3</title>
     <!-- Firebase SDK (Compat) -->
     <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-auth-compat.js"></script>
@@ -28,12 +28,603 @@
         .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
         .flex-between { display: flex; justify-content: space-between; align-items: center; }
         
-        /* 頁籤選單樣式 */
         .tab-nav { display: flex; background: #252525; border-radius: 6px; padding: 3px; margin-bottom: 10px; overflow-x: auto; }
         .tab-btn { flex: 1; padding: 8px; text-align: center; background: none; border: none; color: #aaa; font-weight: bold; cursor: pointer; border-radius: 4px; white-space: nowrap; }
         .tab-btn.active { background: var(--accent); color: #fff; }
         .tab-content { display: none; }
         .tab-content.active { display: block; }
+
+        #toast-container {
+            position: fixed; top: 15px; left: 50%; transform: translateX(-50%);
+            z-index: 9999; display: flex; flex-direction: column; gap: 8px; width: 90%; max-width: 380px; pointer-events: none;
+        }
+        .toast-item {
+            background: rgba(20, 20, 20, 0.92); color: #fff; border: 1px solid #555;
+            padding: 10px 16px; border-radius: 8px; font-size: 0.88em; text-align: center;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.6); backdrop-filter: blur(4px);
+            animation: fadeInDown 0.3s ease-out forwards;
+        }
+        @keyframes fadeInDown {
+            from { opacity: 0; transform: translateY(-20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .table-responsive { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+        .industry-card { border: 1px solid #444; border-radius: 6px; padding: 10px; margin-bottom: 12px; background: #181818; }
+        .tech-box { background: #222; border: 1px dashed var(--warning); padding: 8px; border-radius: 4px; margin-top: 8px; }
+    </style>
+</head>
+<body>
+
+    <div id="toast-container"></div>
+
+    <h2>🌐 自由大亨：全球市場</h2>
+    
+    <!-- 帳號登入 / 註冊區 -->
+    <div id="auth-sec" class="card">
+        <h3 id="auth-title">🔐 企業帳號登入</h3>
+        <input type="email" id="auth-email" placeholder="電子郵件 (Email)"><br>
+        <input type="password" id="auth-pass" placeholder="密碼 (至少 6 位數)"><br>
+        <div id="company-name-box" style="display: none;">
+            <input type="text" id="auth-company" placeholder="企業名稱 (例: 泰坦重工)"><br>
+        </div>
+        <button class="btn btn-success" id="auth-btn" style="width:100%; margin-top:5px;" onclick="handleAuth()">登入企業</button>
+        <button class="btn btn-purple" style="width:100%; margin-top:5px;" onclick="toggleAuthMode()" id="toggle-btn">切換至：註冊新帳號</button>
+    </div>
+
+    <!-- 遊戲主體內容 -->
+    <div id="game-sec" style="display: none;">
+        
+        <!-- 頂部頁籤導航欄 (已刪除科技研發) -->
+        <div class="tab-nav">
+            <button class="tab-btn active" onclick="switchTab(event, 'tab-overview')">🏢 企業總覽</button>
+            <button class="tab-btn" onclick="switchTab(event, 'tab-production')">🏭 產業生產</button>
+            <button class="tab-btn" onclick="switchTab(event, 'tab-tree')">🌳 產業樹結構</button>
+            <button class="tab-btn" onclick="switchTab(event, 'tab-market')">🏛️ 全球交易所</button>
+            <button class="tab-btn" onclick="switchTab(event, 'tab-wiki')">📖 商業百科</button>
+        </div>
+
+        <!-- 1. 企業總覽頁籤 -->
+        <div id="tab-overview" class="tab-content active">
+            <div class="card" style="background: #252525;">
+                <div class="flex-between">
+                    <div>🏢 <b id="display-name" style="color:#007bff; font-size:1.1em;">-</b></div>
+                    <button class="btn btn-danger" style="font-size:0.7em; padding: 2px 6px;" onclick="logout()">安全登出</button>
+                </div>
+                <hr style="border:0.5px solid #444; margin: 8px 0;">
+                <h4 style="margin:5px 0;">💰 財務與資產統計：</h4>
+                <div class="grid-2">
+                    <div>💵 現金: <b id="cash" style="color: #28a745;">$0</b></div>
+                    <div>⛏️ 基礎原物料總數: <b id="inv-t1-sum">0</b></div>
+                    <div>🏭 中游加工品總數: <b id="inv-t2-sum">0</b></div>
+                    <div>📦 高階終端品總數: <b id="inv-t3-sum">0</b></div>
+                </div>
+            </div>
+            <div class="card">
+                <h4>📦 詳細物料倉庫庫存</h4>
+                <div id="inventory-detail-list" class="grid-2" style="font-size: 0.85em;">
+                    <!-- 由 JS 動態繪製倉庫物品 -->
+                </div>
+            </div>
+        </div>
+
+        <!-- 2. 產業生產頁籤 (含 12 大產業鏈與極肝科技解鎖) -->
+        <div id="tab-production" class="tab-content">
+            <div class="card">
+                <h3>🏭 12 大產業生產中心與極肝科技樹</h3>
+                <p id="factory-status-text" style="color:#ffc107; font-size:0.85em; font-weight:bold;">狀態：工廠閒置中</p>
+                <div id="industry-production-list">
+                    <!-- 由 JS 動態生成 12 大產業生產區塊 -->
+                </div>
+            </div>
+        </div>
+
+        <!-- 3. 產業樹結構頁籤 -->
+        <div id="tab-tree" class="tab-content">
+            <div class="card">
+                <h3>🌳 12 大產業鏈與科技解鎖總覽</h3>
+                <div class="table-responsive">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>產業類別</th>
+                                <th>基礎原物料 (T1)</th>
+                                <th>中游加工品 (T2)</th>
+                                <th>高階終端產品 (T3)</th>
+                                <th>🔒 終極解鎖科技</th>
+                                <th>研發資金</th>
+                                <th>耗時</th>
+                            </tr>
+                        </thead>
+                        <tbody id="industry-tree-table-body">
+                            <!-- 由 JS 動態繪製 -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- 4. 全球交易所與政府採購頁籤 -->
+        <div id="tab-market" class="tab-content">
+            <div class="card">
+                <h3>🏛️ 全球玩家即時交易所</h3>
+                <p style="margin:2px 0; font-size:0.85em; color:#aaa;">選擇 12 大產業物料發布賣單至大盤：</p>
+                <div class="grid-2">
+                    <select id="sell-item" onchange="updateMarketPriceDisplay()"></select>
+                    <input type="number" id="sell-qty" min="1" placeholder="數量">
+                </div>
+                <div style="font-size:0.85em; color:#ffc107; margin-bottom:4px;">即時參考市價：$<span id="selected-market-price">0</span> (法定底價: $<span id="selected-min-price">0</span>)</div>
+                <input type="number" id="sell-price" placeholder="設定出售單價 ($)">
+                <button class="btn btn-warning" style="width:100%; margin-top:5px;" onclick="postGlobalOrder()">📢 上架交易所</button>
+
+                <h4 style="margin-bottom: 5px; margin-top:15px;">📢 全服線上掛單列表</h4>
+                <div class="table-responsive">
+                    <table>
+                        <thead>
+                            <tr><th>賣家企業</th><th>物料</th><th>數量</th><th>單價</th><th>操作</th></tr>
+                        </thead>
+                        <tbody id="global-market-list">
+                            <tr><td colspan="5">連線資料庫中...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- 政府物料採購處 (覆蓋 12 大產業全部物料) -->
+            <div class="card" style="border: 1px solid var(--warning);">
+                <h3>🏛️ 政府物料採購處 (快速變現)</h3>
+                <p style="font-size:0.85em; color:#aaa;">選擇 12 大產業物料賣給政府（保底價）：</p>
+                
+                <div class="grid-2">
+                    <select id="npc-sell-item" onchange="updateNpcEstimate()"></select>
+                    <input type="number" id="npc-sell-qty" min="1" value="1" placeholder="出售數量" oninput="updateNpcEstimate()">
+                </div>
+                <div style="font-size:0.9em; margin: 6px 0;">預計獲得政府補貼：<b id="npc-est-payout" style="color:#28a745;">$0</b></div>
+                <button class="btn btn-success" style="width:100%; font-size:1em;" onclick="confirmNpcSell()">✅ 確定出售給政府</button>
+            </div>
+        </div>
+
+        <!-- 5. 商業百科 (Wiki) 頁籤 -->
+        <div id="tab-wiki" class="tab-content">
+            <div class="card">
+                <h3>📖 商業百科與 12 大產業物料規範</h3>
+                <p style="font-size:0.85em; color:#aaa;">包含所有 12 大產業物料之法定底價與政府保底收購價格：</p>
+                <div class="table-responsive">
+                    <table>
+                        <thead>
+                            <tr><th>產業</th><th>物料名稱</th><th>物料階級</th><th>最低法定底價</th><th>政府保底價 (-1%)</th></tr>
+                        </thead>
+                        <tbody id="wiki-material-table">
+                            <!-- 由 JS 動態渲染 -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <script>
+        const firebaseConfig = {
+            apiKey: "AIzaSyA8GiYixLGmW73CYg340D5xJTu_15SYlFA",
+            authDomain: "tycoon-horizon-85f43.firebaseapp.com",
+            databaseURL: "https://tycoon-horizon-85f43-default-rtdb.firebaseio.com",
+            projectId: "tycoon-horizon-85f43",
+            storageBucket: "tycoon-horizon-85f43.firebasestorage.app",
+            messagingSenderId: "808593962056",
+            appId: "1:808593962056:web:e015411fc7f4f3e76d547d",
+            measurementId: "G-9D863R525T"
+        };
+
+        firebase.initializeApp(firebaseConfig);
+        const auth = firebase.auth();
+        const db = firebase.database();
+
+        // 12 大產業鏈完整資料結構
+        const INDUSTRIES = [
+            { id: "energy", name: "1. 能源與化學", t1: "原油天然氣", t2: "汽柴油塑膠", t3: "高階潤滑油", basePrice: { t1: 15, t2: 70, t3: 350 }, techName: "核聚變與反物質能源", techCost: 50000000, techReq: { t1: 1000, t2: 500, t3: 100 }, time: "168h" },
+            { id: "agri", name: "2. 農業與食品加工", t1: "農作物鮮奶", t2: "麵粉植物油", t3: "精裝餐盒", basePrice: { t1: 8, t2: 35, t3: 180 }, techName: "合成生物基因食品", techCost: 10000000, techReq: { t1: 2000, t2: 800, t3: 150 }, time: "72h" },
+            { id: "heavy", name: "3. 重工業與冶金", t1: "金屬礦石", t2: "粗鋼精煉銅", t3: "大型工業機具", basePrice: { t1: 12, t2: 55, t3: 280 }, techName: "超導體與超合金冶煉", techCost: 30000000, techReq: { t1: 1500, t2: 600, t3: 120 }, time: "120h" },
+            { id: "light", name: "4. 輕工與紡織", t1: "棉花原木", t2: "布料紙漿", t3: "高級傢俱服飾", basePrice: { t1: 10, t2: 45, t3: 220 }, techName: "智能防護外骨骼布料", techCost: 15000000, techReq: { t1: 1800, t2: 700, t3: 130 }, time: "96h" },
+            { id: "tech", name: "5. 高科技電子", t1: "晶圓稀土", t2: "晶片電路板", t3: "AI伺服器", basePrice: { t1: 25, t2: 120, t3: 650 }, techName: "量子算力矩陣", techCost: 80000000, techReq: { t1: 800, t2: 400, t3: 80 }, time: "240h" },
+            { id: "auto", name: "6. 汽車與陸路運輸", t1: "鋼材橡膠", t2: "車用電池引擎", t3: "電動車EV", basePrice: { t1: 18, t2: 85, t3: 450 }, techName: "磁懸浮與反重力載具", techCost: 45000000, techReq: { t1: 1200, t2: 500, t3: 100 }, time: "144h" },
+            { id: "aero", name: "7. 航太與國防科技", t1: "鈦合金碳纖維", t2: "火箭推進器", t3: "商業客機火箭", basePrice: { t1: 40, t2: 200, t3: 1200 }, techName: "深空殖民艦隊與太空站", techCost: 120000000, techReq: { t1: 500, t2: 250, t3: 50 }, time: "336h" },
+            { id: "bio", name: "8. 生技與醫療製藥", t1: "藥用植物", t2: "活性藥物成分", t3: "高階醫療器材", basePrice: { t1: 20, t2: 95, t3: 500 }, techName: "基因修復與延壽膠囊", techCost: 60000000, techReq: { t1: 1000, t2: 450, t3: 90 }, time: "200h" },
+            { id: "build", name: "9. 房地產與營建基建", t1: "沙石水泥", t2: "預拌混凝土鋼筋", t3: "商業辦公大廈", basePrice: { t1: 10, t2: 50, t3: 260 }, techName: "海底水下城市巨構", techCost: 90000000, techReq: { t1: 2500, t2: 1000, t3: 200 }, time: "288h" },
+            { id: "green", name: "10. 綠能與新能源", t1: "多晶矽銀鈷", t2: "太陽能電池片", t3: "離岸風機儲能", basePrice: { t1: 22, t2: 105, t3: 550 }, techName: "全球行星級無線供電網", techCost: 70000000, techReq: { t1: 900, t2: 400, t3: 85 }, time: "216h" },
+            { id: "ship", name: "11. 海洋與船舶工程", t1: "造船鋼板", t2: "船用柴油引擎", t3: "大型貨櫃輪", basePrice: { t1: 16, t2: 75, t3: 400 }, techName: "極地深海採礦潛艇", techCost: 40000000, techReq: { t1: 1300, t2: 550, t3: 110 }, time: "120h" },
+            { id: "luxury", name: "12. 奢華製品與珠寶", t1: "原鑽金礦", t2: "精煉黃金裸鑽", t3: "高檔機械錶珠寶", basePrice: { t1: 30, t2: 150, t3: 800 }, techName: "皇室拍賣級高定工坊", techCost: 25000000, techReq: { t1: 600, t2: 300, t3: 60 }, time: "96h" }
+        ];
+
+        let isSignUpMode = false;
+        let currentUser = null;
+        let playerData = { companyName: "", cash: 10000, inventory: {}, facilities: {}, unlockedTechs: {} };
+        let activeTask = null; // { indId, targetStage, duration, startTime }
+        let lastTime = Date.now();
+        let floatPrices = {};
+
+        function showToast(msg) {
+            let container = document.getElementById('toast-container');
+            let toast = document.createElement('div');
+            toast.className = 'toast-item';
+            toast.innerText = msg;
+            container.appendChild(toast);
+            setTimeout(() => {
+                toast.style.opacity = '0';
+                toast.style.transition = 'opacity 0.3s ease';
+                setTimeout(() => toast.remove(), 300);
+            }, 3000);
+        }
+
+        function switchTab(evt, tabId) {
+            document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+            evt.currentTarget.classList.add('active');
+            document.getElementById(tabId).classList.add('active');
+        }
+
+        auth.onAuthStateChanged(user => {
+            if (user) {
+                currentUser = user;
+                db.ref('users/' + user.uid).on('value', snapshot => {
+                    if (snapshot.exists()) {
+                        let data = snapshot.val();
+                        playerData = { ...playerData, ...data };
+                        if (!playerData.inventory) playerData.inventory = {};
+                        if (!playerData.facilities) playerData.facilities = {};
+                        if (!playerData.unlockedTechs) playerData.unlockedTechs = {};
+                        document.getElementById('display-name').innerText = playerData.companyName || "未命名企業";
+                        document.getElementById('auth-sec').style.setProperty('display', 'none', 'important');
+                        document.getElementById('game-sec').style.display = 'block';
+                    }
+                });
+                initMarketPrices();
+                renderProductionTab();
+                renderIndustryTree();
+                renderMarketSelects();
+                renderWikiTable();
+                startGameLoop();
+                listenToGlobalMarket();
+            } else {
+                currentUser = null;
+                document.getElementById('auth-sec').style.display = 'block';
+                document.getElementById('game-sec').style.display = 'none';
+            }
+        });
+
+        function toggleAuthMode() {
+            isSignUpMode = !isSignUpMode;
+            document.getElementById('auth-title').innerText = isSignUpMode ? "📝 註冊新企業帳號" : "🔐 企業帳號登入";
+            document.getElementById('auth-btn').innerText = isSignUpMode ? "註冊" : "登入";
+            document.getElementById('toggle-btn').innerText = isSignUpMode ? "切換至：登入帳號" : "切換至：註冊新帳號";
+            document.getElementById('company-name-box').style.display = isSignUpMode ? "block" : "none";
+        }
+
+        function handleAuth() {
+            let email = document.getElementById('auth-email').value.trim();
+            let pass = document.getElementById('auth-pass').value.trim();
+            if (!email || !pass) return showToast("⚠️ 請填寫 Email 與密碼！");
+
+            if (isSignUpMode) {
+                let company = document.getElementById('auth-company').value.trim();
+                if (!company) return showToast("⚠️ 請輸入企業名稱！");
+                auth.createUserWithEmailAndPassword(email, pass).then(cred => {
+                    playerData.companyName = company;
+                    savePlayerData();
+                }).catch(err => showToast("❌ 註冊失敗: " + err.message));
+            } else {
+                auth.signInWithEmailAndPassword(email, pass).catch(err => showToast("❌ 登入失敗: " + err.message));
+            }
+        }
+
+        function logout() { auth.signOut().then(() => location.reload()); }
+        function savePlayerData() { if (currentUser) db.ref('users/' + currentUser.uid).set(playerData); }
+
+        function initMarketPrices() {
+            INDUSTRIES.forEach(ind => {
+                floatPrices[`${ind.id}_t1`] = +(ind.basePrice.t1 * (1 + Math.random() * 0.3)).toFixed(1);
+                floatPrices[`${ind.id}_t2`] = +(ind.basePrice.t2 * (1 + Math.random() * 0.3)).toFixed(1);
+                floatPrices[`${ind.id}_t3`] = +(ind.basePrice.t3 * (1 + Math.random() * 0.3)).toFixed(1);
+            });
+        }
+
+        // 動態渲染產業生產頁面區塊
+        function renderProductionTab() {
+            const container = document.getElementById('industry-production-list');
+            if (!container) return;
+            container.innerHTML = INDUSTRIES.map(ind => {
+                let isTechUnlocked = playerData.unlockedTechs[ind.id];
+                return `
+                    <div class="industry-card">
+                        <h4 style="margin:0 0 8px 0; color:#007bff;">${ind.name}</h4>
+                        <!-- T1 採集設施 -->
+                        <div style="margin-bottom:6px;">
+                            <div class="flex-between">
+                                <span>⛏️ 原料採集 (${ind.t1})</span>
+                                <button class="btn btn-success" onclick="produceT1('${ind.id}')">採集 +1</button>
+                            </div>
+                        </div>
+                        <!-- T2 加工設施 -->
+                        <div style="margin-bottom:6px;">
+                            <div class="flex-between">
+                                <span>🏭 加工組裝 (${ind.t2}) - 需 2x ${ind.t1}</span>
+                                <button class="btn btn-purple" onclick="startCraftTask('${ind.id}', 't2')">開始加工 (5秒)</button>
+                            </div>
+                        </div>
+                        <!-- T3 終端設施 -->
+                        <div style="margin-bottom:6px;">
+                            <div class="flex-between">
+                                <span>📦 高階製造 (${ind.t3}) - 需 2x ${ind.t2}</span>
+                                <button class="btn btn-teal" onclick="startCraftTask('${ind.id}', 't3')">高階製造 (10秒)</button>
+                            </div>
+                        </div>
+                        <!-- 極肝科技研發解鎖 -->
+                        <div class="tech-box">
+                            <div class="flex-between">
+                                <b>🔒 終極科技: ${ind.techName}</b>
+                                <span style="color:${isTechUnlocked ? '#28a745' : '#ffc107'}; font-weight:bold;">${isTechUnlocked ? '✅ 已解鎖' : '未解鎖'}</span>
+                            </div>
+                            <div style="font-size:0.8em; color:#aaa; margin: 4px 0;">
+                                解鎖門檻: $${ind.techCost.toLocaleString()} + ${ind.t1}x${ind.techReq.t1}, ${ind.t2}x${ind.techReq.t2}, ${ind.t3}x${ind.techReq.t3}
+                            </div>
+                            ${!isTechUnlocked ? `<button class="btn btn-warning" style="width:100%;" onclick="unlockIndustryTech('${ind.id}')">⚡ 研發解鎖科技</button>` : ''}
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        // 採集與加工任務管理
+        function produceT1(indId) {
+            let key = `${indId}_t1`;
+            playerData.inventory[key] = (playerData.inventory[key] || 0) + 1;
+            savePlayerData();
+            showToast(`⛏️ 採集獲得 1 單位原物料！`);
+        }
+
+        function startCraftTask(indId, stage) {
+            if (activeTask) return showToast("⚠️ 加工廠正忙碌中，一次僅能執行一項作業！");
+            let reqKey = stage === 't2' ? `${indId}_t1` : `${indId}_t2`;
+            let reqQty = 2;
+
+            if ((playerData.inventory[reqKey] || 0) < reqQty) {
+                return showToast(`❌ 原物料不足！需要 ${reqQty} 單位原料。`);
+            }
+
+            playerData.inventory[reqKey] -= reqQty;
+            activeTask = {
+                indId: indId,
+                stage: stage,
+                duration: stage === 't2' ? 5 : 10,
+                progress: 0
+            };
+            savePlayerData();
+        }
+
+        function unlockIndustryTech(indId) {
+            let ind = INDUSTRIES.find(i => i.id === indId);
+            if (!ind) return;
+
+            if (playerData.cash < ind.techCost) return showToast(`❌ 現金不足 $${ind.techCost.toLocaleString()}！`);
+            let t1Qty = playerData.inventory[`${indId}_t1`] || 0;
+            let t2Qty = playerData.inventory[`${indId}_t2`] || 0;
+            let t3Qty = playerData.inventory[`${indId}_t3`] || 0;
+
+            if (t1Qty < ind.techReq.t1 || t2Qty < ind.techReq.t2 || t3Qty < ind.techReq.t3) {
+                return showToast(`❌ 物料材料不足！需要 T1:${ind.techReq.t1}, T2:${ind.techReq.t2}, T3:${ind.techReq.t3}`);
+            }
+
+            playerData.cash -= ind.techCost;
+            playerData.inventory[`${indId}_t1`] -= ind.techReq.t1;
+            playerData.inventory[`${indId}_t2`] -= ind.techReq.t2;
+            playerData.inventory[`${indId}_t3`] -= ind.techReq.t3;
+            playerData.unlockedTechs[indId] = true;
+
+            savePlayerData();
+            renderProductionTab();
+            showToast(`🎉 成功解鎖終極科技【${ind.techName}】！`);
+        }
+
+        function startGameLoop() {
+            setInterval(() => {
+                if (activeTask) {
+                    activeTask.progress += 0.1;
+                    let percent = (activeTask.progress / activeTask.duration) * 100;
+                    document.getElementById('factory-status-text').innerText = `狀態：🏭 正在進行加工作業 (${percent.toFixed(0)}%)`;
+
+                    if (activeTask.progress >= activeTask.duration) {
+                        let targetKey = `${activeTask.indId}_${activeTask.stage}`;
+                        playerData.inventory[targetKey] = (playerData.inventory[targetKey] || 0) + 1;
+                        showToast(`✅ 加工完成！產出 1 單位物品。`);
+                        activeTask = null;
+                        document.getElementById('factory-status-text').innerText = "狀態：工廠閒置中";
+                        savePlayerData();
+                    }
+                }
+                updateUI();
+            }, 100);
+        }
+
+        function updateUI() {
+            document.getElementById('cash').innerText = '$' + Math.floor(playerData.cash).toLocaleString();
+            
+            // 總資產計算
+            let t1Sum = 0, t2Sum = 0, t3Sum = 0;
+            let detailHtml = "";
+            INDUSTRIES.forEach(ind => {
+                let q1 = playerData.inventory[`${ind.id}_t1`] || 0;
+                let q2 = playerData.inventory[`${ind.id}_t2`] || 0;
+                let q3 = playerData.inventory[`${ind.id}_t3`] || 0;
+                t1Sum += q1; t2Sum += q2; t3Sum += q3;
+
+                if (q1 > 0 || q2 > 0 || q3 > 0) {
+                    detailHtml += `<div><b>${ind.name}:</b> T1:${q1} | T2:${q2} | T3:${q3}</div>`;
+                }
+            });
+            document.getElementById('inv-t1-sum').innerText = t1Sum;
+            document.getElementById('inv-t2-sum').innerText = t2Sum;
+            document.getElementById('inv-t3-sum').innerText = t3Sum;
+            document.getElementById('inventory-detail-list').innerHTML = detailHtml || "<div>倉庫目前空空如也</div>";
+        }
+
+        function renderIndustryTree() {
+            const container = document.getElementById('industry-tree-table-body');
+            if (!container) return;
+            container.innerHTML = INDUSTRIES.map(item => `
+                <tr>
+                    <td style="font-weight:bold; color:#007bff; white-space:nowrap;">${item.name}</td>
+                    <td>${item.t1}</td>
+                    <td>${item.t2}</td>
+                    <td>${item.t3}</td>
+                    <td style="color:#dc3545; font-weight:bold;">${item.techName}</td>
+                    <td style="color:#28a745;">$${item.techCost.toLocaleString()}</td>
+                    <td>${item.time}</td>
+                </tr>
+            `).join('');
+        }
+
+        // 下拉選單注入 12 大產業物料
+        function renderMarketSelects() {
+            let options = "";
+            INDUSTRIES.forEach(ind => {
+                options += `<option value="${ind.id}_t1">[T1] ${ind.name} - ${ind.t1}</option>`;
+                options += `<option value="${ind.id}_t2">[T2] ${ind.name} - ${ind.t2}</option>`;
+                options += `<option value="${ind.id}_t3">[T3] ${ind.name} - ${ind.t3}</option>`;
+            });
+            document.getElementById('sell-item').innerHTML = options;
+            document.getElementById('npc-sell-item').innerHTML = options;
+            updateMarketPriceDisplay();
+            updateNpcEstimate();
+        }
+
+        function updateMarketPriceDisplay() {
+            let val = document.getElementById('sell-item').value;
+            let parts = val.split('_');
+            let ind = INDUSTRIES.find(i => i.id === parts[0]);
+            let minP = ind.basePrice[parts[1]];
+            let floatP = floatPrices[val] || minP;
+
+            document.getElementById('selected-market-price').innerText = floatP;
+            document.getElementById('selected-min-price').innerText = minP;
+        }
+
+        function updateNpcEstimate() {
+            let val = document.getElementById('npc-sell-item').value;
+            let qty = parseFloat(document.getElementById('npc-sell-qty').value) || 0;
+            let parts = val.split('_');
+            let ind = INDUSTRIES.find(i => i.id === parts[0]);
+            let unitPrice = ind.basePrice[parts[1]] * 0.99;
+            document.getElementById('npc-est-payout').innerText = '$' + (unitPrice * qty).toFixed(2);
+        }
+
+        function confirmNpcSell() {
+            let val = document.getElementById('npc-sell-item').value;
+            let qty = parseFloat(document.getElementById('npc-sell-qty').value) || 0;
+            if (qty <= 0) return showToast("⚠️ 請輸入有效的出售數量！");
+            if ((playerData.inventory[val] || 0) < qty) return showToast("❌ 倉庫庫存不足！");
+
+            let parts = val.split('_');
+            let ind = INDUSTRIES.find(i => i.id === parts[0]);
+            let unitPrice = ind.basePrice[parts[1]] * 0.99;
+            let total = unitPrice * qty;
+
+            playerData.inventory[val] -= qty;
+            playerData.cash += total;
+            savePlayerData();
+            updateNpcEstimate();
+            showToast(`💵 成功賣給政府，獲得補貼 $${total.toFixed(2)}！`);
+        }
+
+        function postGlobalOrder() {
+            let itemKey = document.getElementById('sell-item').value;
+            let qty = parseFloat(document.getElementById('sell-qty').value);
+            let price = parseFloat(document.getElementById('sell-price').value);
+
+            let parts = itemKey.split('_');
+            let ind = INDUSTRIES.find(i => i.id === parts[0]);
+            let minP = ind.basePrice[parts[1]];
+
+            if (price < minP) return showToast(`⚠️ 價格不能低於法定底價 $${minP}！`);
+            if (qty > 0 && price > 0 && (playerData.inventory[itemKey] || 0) >= qty) {
+                playerData.inventory[itemKey] -= qty;
+                savePlayerData();
+
+                db.ref('market').push({
+                    sellerUid: currentUser.uid,
+                    sellerName: playerData.companyName,
+                    itemKey: itemKey,
+                    itemName: `${ind.name} (${ind[parts[1]]})`,
+                    qty: qty,
+                    price: price,
+                    timestamp: Date.now()
+                });
+                showToast("📢 成功上架交易所！");
+            } else showToast("❌ 庫存不足或數值錯誤！");
+        }
+
+        function listenToGlobalMarket() {
+            db.ref('market').on('value', snapshot => {
+                let tbody = document.getElementById('global-market-list');
+                tbody.innerHTML = '';
+                let data = snapshot.val();
+                if (!data) {
+                    tbody.innerHTML = '<tr><td colspan="5">目前市場暫無賣單</td></tr>';
+                    return;
+                }
+                Object.keys(data).forEach(key => {
+                    let ord = data[key];
+                    let isMine = ord.sellerUid === currentUser.uid;
+                    tbody.innerHTML += `
+                        <tr>
+                            <td><b>${ord.sellerName}</b> ${isMine ? '(我)' : ''}</td>
+                            <td>${ord.itemName}</td>
+                            <td>${ord.qty}</td>
+                            <td>$${ord.price}</td>
+                            <td>
+                                ${isMine ? '<span style="color:#aaa;">我的賣單</span>' : `<button class="btn btn-success" onclick="buyOrder('${key}', '${ord.itemKey}',${ord.qty}, ${ord.price}, '${ord.sellerUid}')">購買</button>`}
+                            </td>
+                        </tr>
+                    `;
+                });
+            });
+        }
+
+        function buyOrder(orderId, itemKey, qty, price, sellerUid) {
+            let total = qty * price;
+            if (playerData.cash < total) return showToast("❌ 現金不足！");
+
+            db.ref('market/' + orderId).remove().then(() => {
+                playerData.cash -= total;
+                playerData.inventory[itemKey] = (playerData.inventory[itemKey] || 0) + qty;
+                savePlayerData();
+                db.ref('users/' + sellerUid + '/cash').transaction(c => (c || 0) + total);
+                showToast("🛒 購買成功！已入庫。");
+            }).catch(() => showToast("❌ 交易失敗，可能已被買走！"));
+        }
+
+        function renderWikiTable() {
+            let tbody = document.getElementById('wiki-material-table');
+            if (!tbody) return;
+            let html = "";
+            INDUSTRIES.forEach(ind => {
+                ['t1', 't2', 't3'].forEach(stage => {
+                    let p = ind.basePrice[stage];
+                    html += `
+                        <tr>
+                            <td>${ind.name}</td>
+                            <td>${ind[stage]}</td>
+                            <td>${stage.toUpperCase()}</td>
+                            <td>$${p.toFixed(2)}</td>
+                            <td style="color:#28a745;">$${(p * 0.99).toFixed(2)}</td>
+                        </tr>
+                    `;
+                });
+            });
+            tbody.innerHTML = html;
+        }
+    </script>
+</body>
+</html>
 
         /* 由上至下堆疊的 Toast 通知容器 */
         #toast-container {
