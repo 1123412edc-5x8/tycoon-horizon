@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>自由大亨：全球市場v5</title>
+    <title>自由大亨：全球市場</title>
     <!-- Firebase SDK (Compat) -->
     <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-auth-compat.js"></script>
@@ -129,6 +129,29 @@
         .industry-card { border: 1px solid #444; border-radius: 6px; padding: 10px; margin-bottom: 12px; background: #181818; }
         .industry-card.locked { opacity: 0.5; filter: grayscale(80%); }
         .tech-box { background: #222; border: 1px dashed var(--warning); padding: 8px; border-radius: 4px; margin-top: 8px; }
+
+        /* 頂部生產進度列樣式 */
+        .global-status-bar {
+            background: #282828;
+            border: 1px solid var(--accent);
+            border-radius: 8px;
+            padding: 10px;
+            margin-bottom: 10px;
+        }
+        .progress-bg {
+            background: #444;
+            border-radius: 4px;
+            height: 10px;
+            width: 100%;
+            overflow: hidden;
+            margin-top: 6px;
+        }
+        .progress-fill {
+            background: var(--success);
+            height: 100%;
+            width: 0%;
+            transition: width 0.1s linear;
+        }
     </style>
 </head>
 <body>
@@ -151,6 +174,20 @@
 
     <!-- 遊戲主體內容 -->
     <div id="game-sec" style="display: none;">
+
+        <!-- 頂部即時生產狀態顯示列（位置如截圖紅圈標註） -->
+        <div class="global-status-bar">
+            <div class="flex-between">
+                <div>
+                    ⚙️ <b>全域生產狀態：</b>
+                    <span id="global-task-name" style="color:#ffc107; font-weight:bold;">💤 工廠閒置中</span>
+                </div>
+                <button class="btn btn-danger" id="stop-task-btn" style="font-size:0.75em; padding: 3px 8px; display:none;" onclick="stopProductionTask()">🛑 停止生產</button>
+            </div>
+            <div class="progress-bg">
+                <div id="global-progress-bar" class="progress-fill"></div>
+            </div>
+        </div>
         
         <!-- 頁籤導航欄 -->
         <div class="tab-nav">
@@ -188,7 +225,7 @@
         <div id="tab-production" class="tab-content">
             <div class="card">
                 <h3>🏭 產業生產中心與科技解鎖樹</h3>
-                <p id="factory-status-text" style="color:#ffc107; font-size:0.85em; font-weight:bold;">狀態：工廠閒置中</p>
+                <p style="color:#aaa; font-size:0.85em; margin-top:-5px;">點擊項目後將開啟【自動循環生產】，直到手動停止或材料耗盡。</p>
                 <div id="industry-production-list">
                     <!-- 由 JS 動態生成產業生產區塊 -->
                 </div>
@@ -293,7 +330,6 @@
         const auth = firebase.auth();
         const db = firebase.database();
 
-        // 產業解鎖順序鏈：採礦 (heavy) -> 能源化學 (energy) -> 高科技 (tech) -> ...
         const INDUSTRIES = [
             { id: "heavy", name: "1. 重工業與冶金 (採礦)", t1: "金屬礦石", t2: "粗鋼精煉銅", t3: "大型工業機具", basePrice: { t1: 12, t2: 55, t3: 280 }, techName: "超導體與超合金冶煉", techCost: 100000, techReq: { t1: 100, t2: 50, t3: 10 }, unlockParent: null },
             { id: "energy", name: "2. 能源與化學", t1: "原油天然氣", t2: "汽柴油塑膠", t3: "高階潤滑油", basePrice: { t1: 15, t2: 70, t3: 350 }, techName: "核聚變與反物質能源", techCost: 500000, techReq: { t1: 200, t2: 100, t3: 20 }, unlockParent: "heavy" },
@@ -307,7 +343,7 @@
         let isSignUpMode = false;
         let currentUser = null;
         let playerData = { companyName: "", cash: 50000, inventory: {}, unlockedTechs: {} };
-        let activeTask = null;
+        let activeTask = null; // 當前正執行的自動生產任務
         let priceMultipliers = {};
 
         function showToast(msg) {
@@ -420,20 +456,20 @@
                         <h4 style="margin:0 0 8px 0; color:#007bff;">${ind.name}</h4>
                         <div style="margin-bottom:6px;">
                             <div class="flex-between">
-                                <span>⛏️ 採集/生產原料 (${ind.t1})</span>
-                                <button class="btn btn-success" onclick="produceT1('${ind.id}')">採集 +1</button>
+                                <span>⛏️ 自動採集/生產原料 (${ind.t1}) - 3秒/次</span>
+                                <button class="btn btn-success" onclick="startAutoTask('${ind.id}', 't1')">🔄 自動採集</button>
                             </div>
                         </div>
                         <div style="margin-bottom:6px;">
                             <div class="flex-between">
-                                <span>🏭 加工組裝 (${ind.t2}) - 需 2x ${ind.t1}</span>
-                                <button class="btn btn-purple" onclick="startCraftTask('${ind.id}', 't2')">開始加工 (5秒)</button>
+                                <span>🏭 加工組裝 (${ind.t2}) - 需 2x ${ind.t1} (5秒)</span>
+                                <button class="btn btn-purple" onclick="startAutoTask('${ind.id}', 't2')">🔄 自動加工</button>
                             </div>
                         </div>
                         <div style="margin-bottom:6px;">
                             <div class="flex-between">
-                                <span>📦 高階製造 (${ind.t3}) - 需 2x ${ind.t2}</span>
-                                <button class="btn btn-teal" onclick="startCraftTask('${ind.id}', 't3')">高階製造 (10秒)</button>
+                                <span>📦 高階製造 (${ind.t3}) - 需 2x ${ind.t2} (10秒)</span>
+                                <button class="btn btn-teal" onclick="startAutoTask('${ind.id}', 't3')">🔄 自動製造</button>
                             </div>
                         </div>
                         <div class="tech-box">
@@ -451,25 +487,90 @@
             }).join('');
         }
 
-        function produceT1(indId) {
-            let key = `${indId}_t1`;
-            playerData.inventory[key] = (playerData.inventory[key] || 0) + 1;
-            savePlayerData();
-            showToast(`⛏️ 獲得 1 單位原物料！`);
-        }
-
-        function startCraftTask(indId, stage) {
-            if (activeTask) return showToast("⚠️ 加工廠正忙碌中，一次僅能執行一項作業！");
-            let reqKey = stage === 't2' ? `${indId}_t1` : `${indId}_t2`;
-            let reqQty = 2;
-
-            if ((playerData.inventory[reqKey] || 0) < reqQty) {
-                return showToast(`❌ 原物料不足！需要 ${reqQty} 單位原料。`);
+        // 開始自動生產/採集任務（全廠排他）
+        function startAutoTask(indId, stage) {
+            if (activeTask) {
+                return showToast("⚠️ 目前有其他生產項目進行中！請先點擊頂部【停止生產】。");
             }
 
-            playerData.inventory[reqKey] -= reqQty;
-            activeTask = { indId: indId, stage: stage, duration: stage === 't2' ? 5 : 10, progress: 0 };
+            let ind = INDUSTRIES.find(i => i.id === indId);
+            let duration = stage === 't1' ? 3 : (stage === 't2' ? 5 : 10);
+            let stageName = stage === 't1' ? ind.t1 : (stage === 't2' ? ind.t2 : ind.t3);
+
+            // 若為加工，初次啟動前檢查材料
+            if (stage !== 't1') {
+                let reqKey = stage === 't2' ? `${indId}_t1` : `${indId}_t2`;
+                if ((playerData.inventory[reqKey] || 0) < 2) {
+                    return showToast(`❌ 原物料不足！至少需要 2 單位材料。`);
+                }
+                playerData.inventory[reqKey] -= 2;
+            }
+
+            activeTask = {
+                indId: indId,
+                stage: stage,
+                duration: duration,
+                progress: 0,
+                displayName: `${ind.name} - ${stageName}`
+            };
+
             savePlayerData();
+            showToast(`⚙️ 已開始自動生產：${stageName}`);
+        }
+
+        // 手動停止任務
+        function stopProductionTask() {
+            if (activeTask) {
+                showToast("🛑 已停止自動生產作業。");
+                activeTask = null;
+                document.getElementById('global-task-name').innerText = "💤 工廠閒置中";
+                document.getElementById('global-progress-bar').style.width = "0%";
+                document.getElementById('stop-task-btn').style.display = "none";
+            }
+        }
+
+        function startGameLoop() {
+            setInterval(() => {
+                if (activeTask) {
+                    activeTask.progress += 0.1;
+                    let percent = Math.min((activeTask.progress / activeTask.duration) * 100, 100);
+
+                    // 更新頂部全域狀態橫幅 (如截圖位置)
+                    document.getElementById('global-task-name').innerText = `${activeTask.displayName} (${percent.toFixed(0)}%)`;
+                    document.getElementById('global-progress-bar').style.width = percent + "%";
+                    document.getElementById('stop-task-btn').style.display = "inline-block";
+
+                    // 完成一輪生產
+                    if (activeTask.progress >= activeTask.duration) {
+                        let targetKey = `${activeTask.indId}_${activeTask.stage}`;
+                        playerData.inventory[targetKey] = (playerData.inventory[targetKey] || 0) + 1;
+
+                        // 重置進度以實現【無限自動重複】
+                        activeTask.progress = 0;
+
+                        // 若非採集，檢查下一輪所需原料
+                        if (activeTask.stage !== 't1') {
+                            let reqKey = activeTask.stage === 't2' ? `${activeTask.indId}_t1` : `${activeTask.indId}_t2`;
+                            if ((playerData.inventory[reqKey] || 0) < 2) {
+                                showToast(`⚠️ 材料耗盡！${activeTask.displayName} 已自動停止生產。`);
+                                activeTask = null;
+                                document.getElementById('global-task-name').innerText = "💤 工廠閒置中 (材料不足)";
+                                document.getElementById('global-progress-bar').style.width = "0%";
+                                document.getElementById('stop-task-btn').style.display = "none";
+                            } else {
+                                playerData.inventory[reqKey] -= 2;
+                            }
+                        }
+
+                        savePlayerData();
+                    }
+                } else {
+                    document.getElementById('global-task-name').innerText = "💤 工廠閒置中";
+                    document.getElementById('global-progress-bar').style.width = "0%";
+                    document.getElementById('stop-task-btn').style.display = "none";
+                }
+                updateUI();
+            }, 100);
         }
 
         function unlockIndustryTech(indId) {
@@ -495,26 +596,6 @@
             renderProductionTab();
             renderMarketSelects();
             showToast(`🎉 解鎖科技【${ind.techName}】！已開啟新產業權限！`);
-        }
-
-        function startGameLoop() {
-            setInterval(() => {
-                if (activeTask) {
-                    activeTask.progress += 0.1;
-                    let percent = (activeTask.progress / activeTask.duration) * 100;
-                    document.getElementById('factory-status-text').innerText = `狀態：🏭 正在進行加工作業 (${percent.toFixed(0)}%)`;
-
-                    if (activeTask.progress >= activeTask.duration) {
-                        let targetKey = `${activeTask.indId}_${activeTask.stage}`;
-                        playerData.inventory[targetKey] = (playerData.inventory[targetKey] || 0) + 1;
-                        showToast(`✅ 加工完成！產出 1 單位物品。`);
-                        activeTask = null;
-                        document.getElementById('factory-status-text').innerText = "狀態：工廠閒置中";
-                        savePlayerData();
-                    }
-                }
-                updateUI();
-            }, 100);
         }
 
         function updateUI() {
