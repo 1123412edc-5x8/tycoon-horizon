@@ -14,12 +14,14 @@
         .btn { background: var(--accent); color: #fff; border: none; padding: 8px 12px; border-radius: 4px; font-weight: bold; cursor: pointer; margin: 2px; }
         .btn-success { background: var(--success); }
         .btn-warning { background: var(--warning); color: #000; }
+        .btn-danger { background: var(--danger); }
         .progress-bar { background: #333; height: 10px; border-radius: 5px; overflow: hidden; margin: 5px 0; }
         .progress-fill { background: var(--success); height: 100%; width: 0%; }
         table { width: 100%; border-collapse: collapse; margin-top: 5px; font-size: 0.85em; }
         th, td { border: 1px solid #333; padding: 6px; text-align: center; }
         th { background: #2a2a2a; }
         input { background: #2a2a2a; color: #fff; border: 1px solid #444; padding: 6px; border-radius: 4px; margin: 2px 0; width: 90%; }
+        .status-badge { font-size: 0.8em; padding: 2px 6px; border-radius: 4px; background: #333; display: inline-block; }
     </style>
 </head>
 <body>
@@ -36,9 +38,17 @@
     <!-- 遊戲主體內容 -->
     <div id="game-sec" style="display: none;">
         <div class="card" style="background: #252525;">
-            企業: <b id="display-name" style="color:#007bff;">-</b> | 
-            💵 現金: <b id="cash" style="color: #28a745;">$0.00</b> | 
-            ⛏️ 倉庫鐵礦: <b id="inv-iron">0</b> 噸
+            <div>
+                企業: <b id="display-name" style="color:#007bff;">-</b> 
+                <button class="btn btn-danger" style="font-size:0.7em; padding: 2px 6px; float: right;" onclick="logout()">登出/切換企業</button>
+            </div>
+            <div style="margin-top: 8px;">
+                💵 現金: <b id="cash" style="color: #28a745;">$0.00</b> | 
+                ⛏️ 倉庫鐵礦: <b id="inv-iron">0</b> 噸
+            </div>
+            <div style="margin-top: 5px;">
+                <span id="sync-status" class="status-badge" style="color: #28a745;">☁️ 雲端自動同步中</span>
+            </div>
         </div>
 
         <!-- 產業生產區 -->
@@ -70,7 +80,7 @@
     </div>
 
     <script>
-        // 帶入你的專屬 Firebase 設定
+        // 你的專屬 Firebase 設定
         const firebaseConfig = {
             apiKey: "AIzaSyA8GiYixLGmW73CYg340D5xJTu_15SYlFA",
             authDomain: "tycoon-horizon-85f43.firebaseapp.com",
@@ -87,46 +97,97 @@
         const db = firebase.database();
 
         let myCompanyName = "";
+        let playerKey = ""; // Firebase 相容安全 Key
         let playerData = { cash: 50000, iron: 0, bufferIron: 0 };
         let lastTime = Date.now();
 
-        // 登入 / 註冊企業
+        // 頁面載入時自動檢查是否有本地登入紀錄
+        window.onload = function() {
+            let savedCompany = localStorage.getItem('tycoon_company_name');
+            if (savedCompany) {
+                document.getElementById('company-name-input').value = savedCompany;
+                login();
+            }
+        };
+
+        // 安全轉換字元作為 Firebase 節點 Key
+        function encodeKey(str) {
+            return encodeURIComponent(str).replace(/\./g, '%2E');
+        }
+
+        // 登入 / 載入專屬企業存檔
         function login() {
             let name = document.getElementById('company-name-input').value.trim();
             if (!name) return alert("請輸入企業名稱！");
+            
             myCompanyName = name;
+            playerKey = encodeKey(name);
 
-            // 從雲端載入或建立玩家存檔
-            db.ref('players/' + myCompanyName).once('value', snapshot => {
+            // 將企業名稱儲存在手機本地記憶庫 (自動登入)
+            localStorage.setItem('tycoon_company_name', myCompanyName);
+
+            // 從雲端載入數據或建立新帳號
+            db.ref('players/' + playerKey).once('value', snapshot => {
                 if (snapshot.exists()) {
-                    playerData = snapshot.val();
+                    let cloudData = snapshot.val();
+                    playerData.cash = cloudData.cash !== undefined ? cloudData.cash : 50000;
+                    playerData.iron = cloudData.iron !== undefined ? cloudData.iron : 0;
+                    playerData.bufferIron = cloudData.bufferIron !== undefined ? cloudData.bufferIron : 0;
                 } else {
-                    savePlayerData(); // 新玩家初始化
+                    savePlayerData(); // 新企業初始化存檔
                 }
+
                 document.getElementById('display-name').innerText = myCompanyName;
                 document.getElementById('login-sec').style.display = 'none';
                 document.getElementById('game-sec').style.display = 'block';
 
                 startGameLoop();
                 listenToGlobalMarket();
+                listenToMyPlayerChanges();
             });
+        }
+
+        // 登出/切換企業
+        function logout() {
+            if (confirm("確定要登出並切換企業嗎？")) {
+                localStorage.removeItem('tycoon_company_name');
+                location.reload();
+            }
         }
 
         // 保存玩家數據至 Firebase
         function savePlayerData() {
-            if (myCompanyName) {
-                db.ref('players/' + myCompanyName).set(playerData);
+            if (playerKey) {
+                db.ref('players/' + playerKey).set({
+                    companyName: myCompanyName,
+                    cash: playerData.cash,
+                    iron: playerData.iron,
+                    bufferIron: playerData.bufferIron,
+                    lastUpdated: Date.now()
+                });
             }
         }
 
-        // 遊戲主循環
+        // 監聽自身資料變動 (例如收到別的玩家給的交易款項)
+        function listenToMyPlayerChanges() {
+            db.ref('players/' + playerKey).on('value', snapshot => {
+                if (snapshot.exists()) {
+                    let data = snapshot.val();
+                    playerData.cash = data.cash;
+                    playerData.iron = data.iron;
+                    updateUI();
+                }
+            });
+        }
+
+        // 遊戲主循環 (產能計算與UI更新)
         function startGameLoop() {
             setInterval(() => {
                 let now = Date.now();
                 let dt = (now - lastTime) / 1000;
                 lastTime = now;
 
-                // 鐵礦累積
+                // 鐵礦緩衝池累積
                 if (playerData.bufferIron < 100) {
                     playerData.bufferIron = Math.min(100, playerData.bufferIron + 2.0 * dt);
                 }
@@ -134,8 +195,8 @@
                 updateUI();
             }, 100);
 
-            // 每 5 秒自動同步一次雲端存檔
-            setInterval(savePlayerData, 5000);
+            // 每 3 秒自動定期儲存雲端存檔
+            setInterval(savePlayerData, 3000);
         }
 
         function updateUI() {
@@ -148,7 +209,7 @@
         function harvestIron() {
             playerData.iron += playerData.bufferIron;
             playerData.bufferIron = 0;
-            savePlayerData();
+            savePlayerData(); // 立即同步至雲端
         }
 
         // 發布賣單到全球雲端資料庫
@@ -158,17 +219,20 @@
 
             if (qty > 0 && price > 0 && playerData.iron >= qty) {
                 playerData.iron -= qty;
-                savePlayerData();
+                savePlayerData(); // 扣除物料並存檔
 
-                // 推送至 Firebase 雲端市場節點
+                // 推送至 Firebase 雲端市場
                 db.ref('market').push({
                     seller: myCompanyName,
+                    sellerKey: playerKey,
                     item: "⛏️ 鐵礦石",
                     qty: qty,
                     price: price,
                     timestamp: Date.now()
                 });
 
+                document.getElementById('sell-qty').value = '';
+                document.getElementById('sell-price').value = '';
                 alert("成功掛單至全球市場！");
             } else {
                 alert("鐵礦庫存不足或輸入數據錯誤！");
@@ -189,7 +253,7 @@
 
                 Object.keys(data).forEach(key => {
                     let ord = data[key];
-                    let isMine = ord.seller === myCompanyName;
+                    let isMine = ord.sellerKey === playerKey || ord.seller === myCompanyName;
                     tbody.innerHTML += `
                         <tr>
                             <td><b>${ord.seller}</b> ${isMine ? '(我)' : ''}</td>
@@ -197,7 +261,7 @@
                             <td>${ord.qty} 噸</td>
                             <td>$${ord.price.toFixed(2)}</td>
                             <td>
-                                ${isMine ? '<span style="color:#aaa;">自己的單</span>' : `<button class="btn btn-success" onclick="buyGlobalOrder('${key}',${ord.qty}, ${ord.price}, '${ord.seller}')">購買</button>`}
+                                ${isMine ? '<span style="color:#aaa;">我的掛單</span>' : `<button class="btn btn-success" onclick="buyGlobalOrder('${key}',${ord.qty}, ${ord.price}, '${ord.sellerKey}')">購買</button>`}
                             </td>
                         </tr>
                     `;
@@ -206,7 +270,7 @@
         }
 
         // 跨玩家即時購買交易
-        function buyGlobalOrder(orderId, qty, price, sellerName) {
+        function buyGlobalOrder(orderId, qty, price, sellerKey) {
             let totalCost = qty * price;
             if (playerData.cash < totalCost) return alert("現金不足，無法購買！");
 
@@ -216,12 +280,12 @@
                 playerData.iron += qty;
                 savePlayerData();
 
-                // 把錢轉給賣家（更新賣家雲端帳號）
-                db.ref('players/' + sellerName + '/cash').transaction(currentCash => {
+                // 將資金劃轉給賣家（更新賣家雲端帳號）
+                db.ref('players/' + sellerKey + '/cash').transaction(currentCash => {
                     return (currentCash || 0) + totalCost;
                 });
 
-                alert(`成功向 ${sellerName} 購買了 ${qty} 噸鐵礦石！`);
+                alert(`成功購買了 ${qty} 噸鐵礦石！資金已自動轉給賣家。`);
             }).catch(() => {
                 alert("手慢了！該商品已被其他玩家搶先買走！");
             });
