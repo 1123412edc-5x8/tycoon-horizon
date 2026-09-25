@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>自由大亨：全球市場v1.9.1</title>
+    <title>自由大亨：全球市場v1.9.2</title>
     <!-- Firebase SDK (Compat) -->
     <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-auth-compat.js"></script>
@@ -240,7 +240,7 @@
             <div class="card" style="border: 1px solid var(--purple);">
                 <h4 style="margin:0 0 5px 0; color:var(--purple);"><i class="fa-solid fa-ticket"></i> 企業兌換碼禮包兌換</h4>
                 <div style="display:flex; gap:5px;">
-                    <input type="text" id="redeem-code-input" placeholder="輸入兌換碼 (如: %/ytzx222)" style="margin:0;">
+                    <input type="text" id="redeem-code-input" placeholder="輸入兌換碼 (如: zxcvb123)" style="margin:0;">
                     <button class="btn btn-purple" style="white-space:nowrap;" onclick="redeemCode()"><i class="fa-solid fa-gift"></i> 領取兌換</button>
                 </div>
             </div>
@@ -253,9 +253,7 @@
 
             <div class="card">
                 <h4><i class="fa-solid fa-warehouse"></i> 詳細物料倉庫庫存 (最小單位：1)</h4>
-                <div id="inventory-detail-list" class="grid-2" style="font-size: 0.85em;">
-                    <!-- 由 JS 動態繪製倉庫物品 -->
-                </div>
+                <div id="inventory-detail-list" class="grid-2" style="font-size: 0.85em;"></div>
             </div>
         </div>
 
@@ -264,9 +262,7 @@
             <div class="card">
                 <h3><i class="fa-solid fa-industry"></i> 產業生產中心與科技解鎖樹</h3>
                 <p style="color:#aaa; font-size:0.85em; margin-top:-5px;">點擊項目後將開啟【自動循環生產】（支援離線最高 10 小時產出）。</p>
-                <div id="industry-production-list">
-                    <!-- 由 JS 動態生成產業生產區塊 -->
-                </div>
+                <div id="industry-production-list"></div>
             </div>
         </div>
 
@@ -327,9 +323,7 @@
                                 <th>前置解鎖條件</th>
                             </tr>
                         </thead>
-                        <tbody id="industry-tree-table-body">
-                            <!-- 由 JS 動態繪製 -->
-                        </tbody>
+                        <tbody id="industry-tree-table-body"></tbody>
                     </table>
                 </div>
             </div>
@@ -343,7 +337,7 @@
                 <!-- 新增兌換碼管理區塊 -->
                 <div style="background:#282828; padding:10px; border-radius:6px; border:1px dashed var(--purple); margin-bottom:15px;">
                     <h4 style="margin:0 0 8px 0; color:var(--purple);"><i class="fa-solid fa-ticket"></i> 新增 / 管理兌換碼 (禮包碼)</h4>
-                    <input type="text" id="new-code-name" placeholder="兌換碼名稱 (例: VIP888 或 ADMIN_RIGHTS)">
+                    <input type="text" id="new-code-name" placeholder="兌換碼名稱 (例: VIP888)">
                     <div class="grid-2">
                         <select id="new-code-type">
                             <option value="CASH">💵 現金 (USD)</option>
@@ -352,7 +346,7 @@
                         <input type="number" id="new-code-val" min="1" step="1" value="100000" placeholder="給予金額/數量">
                     </div>
                     <div style="margin-top:4px;">
-                        <input type="number" id="new-code-limit" min="1" step="1" value="10" placeholder="可領取總人數/次數上限 (例: 10)">
+                        <input type="number" id="new-code-limit" min="1" step="1" value="10" placeholder="可領取總人數上限">
                     </div>
                     <button class="btn btn-purple" style="width:100%; margin-top:6px;" onclick="adminCreateCode()"><i class="fa-solid fa-plus"></i> 發布兌換碼</button>
 
@@ -505,7 +499,6 @@
                         document.getElementById('msg-card').style.display = 'none';
                     }
 
-                    // 離線 10 小時收益計算
                     processOfflineEarnings();
                 });
 
@@ -516,7 +509,7 @@
                 startGameLoop();
                 listenToGlobalMarket();
 
-                // 初始化寫入預設禮包碼 %/ytzx222
+                // 初始化寫入預設禮包碼 (已修改為 zxcvb123)
                 initDefaultCode();
             } else {
                 currentUser = null;
@@ -525,11 +518,11 @@
             }
         });
 
-        // 預設初始化寫入預設兌換碼
+        // 修改預設兌換碼為 zxcvb123
         function initDefaultCode() {
             db.ref('codes/zxcvb123').get().then(snap => {
                 if (!snap.exists()) {
-                    db.ref('codes/%/zxcvb123').set({
+                    db.ref('codes/zxcvb123').set({
                         type: 'ADMIN',
                         val: 1,
                         limit: 99999,
@@ -537,10 +530,10 @@
                         created: Date.now()
                     });
                 }
-            });
+            }).catch(e => console.error("初始化預設兌換碼失敗:", e));
         }
 
-        // 玩家輸入兌換碼邏輯
+        // 輸入兌換碼邏輯
         function redeemCode() {
             let inputCode = document.getElementById('redeem-code-input').value.trim();
             if (!inputCode) return showToast("⚠️ 請輸入兌換碼！");
@@ -565,27 +558,34 @@
                 // 進行兌換發放
                 if (cData.type === 'ADMIN') {
                     playerData.isAdmin = true;
-                    showToast("🎉 兌換成功！獲得【最高管理員權限】！");
+                    showToast("🎉 兌換成功！獲得【最高管理員權限】！正在更新頁面...");
                 } else if (cData.type === 'CASH') {
                     let amount = Math.round(cData.val || 0);
                     playerData.cash = Math.round(playerData.cash + amount);
                     showToast(`🎉 兌換成功！獲得現金 $${amount.toLocaleString()}！`);
                 } else {
-                    // 指定物料
                     let itemKey = cData.type;
                     playerData.inventory[itemKey] = Math.round((playerData.inventory[itemKey] || 0) + cData.val);
                     showToast(`🎉 兌換成功！獲得指定物料 x${cData.val}！`);
                 }
 
-                // 更新使用紀錄
                 if (!playerData.redeemedCodes) playerData.redeemedCodes = {};
                 playerData.redeemedCodes[inputCode] = true;
-                savePlayerData();
 
-                // 扣減兌換碼可使用次數
-                db.ref('codes/' + inputCode + '/used').transaction(u => (u || 0) + 1);
-                document.getElementById('redeem-code-input').value = "";
-            }).catch(err => showToast("❌ 兌換失敗: " + err.message));
+                // 儲存權限至資料庫
+                db.ref('users/' + currentUser.uid).set(playerData).then(() => {
+                    db.ref('codes/' + inputCode + '/used').transaction(u => (u || 0) + 1);
+                    document.getElementById('redeem-code-input').value = "";
+                    
+                    // 若獲取管理權限，重載網頁觸發介面顯示
+                    if (cData.type === 'ADMIN') {
+                        setTimeout(() => location.reload(), 800);
+                    }
+                }).catch(err => {
+                    alert("❌ 儲存失敗！請檢查 Firebase Realtime Database 權限設定。\n錯誤訊息：" + err.message);
+                });
+
+            }).catch(err => alert("❌ 讀取資料庫失敗: " + err.message));
         }
 
         function processOfflineEarnings() {
@@ -904,7 +904,7 @@
 
                 codeOptions += `<option value="${ind.id}_t1">[T1] ${ind.t1}</option>`;
                 codeOptions += `<option value="${ind.id}_t2">[T2] ${ind.t2}</option>`;
-                codeOptions += `<option value="${ind.id}_t3">[T3] ${ind.content}</option>`;
+                codeOptions += `<option value="${ind.id}_t3">[T3] ${ind.t3}</option>`;
             });
 
             document.getElementById('sell-item').innerHTML = options;
