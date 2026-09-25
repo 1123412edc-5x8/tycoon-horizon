@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>自由大亨：全球市場v1.9</title>
+    <title>自由大亨：全球市場v1.9.1</title>
     <!-- Firebase SDK (Compat) -->
     <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-auth-compat.js"></script>
@@ -527,9 +527,9 @@
 
         // 預設初始化寫入預設兌換碼
         function initDefaultCode() {
-            db.ref('codes/%/ytzx222').get().then(snap => {
+            db.ref('codes/zxcvb123').get().then(snap => {
                 if (!snap.exists()) {
-                    db.ref('codes/%/ytzx222').set({
+                    db.ref('codes/%/zxcvb123').set({
                         type: 'ADMIN',
                         val: 1,
                         limit: 99999,
