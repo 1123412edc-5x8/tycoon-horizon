@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>自由大亨：全球市場v.1.8</title>
+    <title>自由大亨：全球市場</title>
     <!-- Firebase SDK (Compat) -->
     <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-auth-compat.js"></script>
@@ -416,69 +416,54 @@
             document.getElementById(tabId).classList.add('active');
         }
 
-        // 自動創建管理員帳戶
-        function ensureAdminAccount() {
-            auth.signInWithEmailAndPassword(ADMIN_EMAIL, "qwert123").catch(err => {
-                if (err.code === 'auth/user-not-found') {
-                    auth.createUserWithEmailAndPassword(ADMIN_EMAIL, "qwert123").then(cred => {
-                        db.ref('users/' + cred.user.uid).set({
-                            companyName: "全球聯邦總局 (ADMIN)",
-                            cash: 999999999,
-                            inventory: {},
-                            unlockedTechs: {},
-                            isAdmin: true
-                        });
-                    });
-                }
-            });
-        }
-        ensureAdminAccount();
-
         auth.onAuthStateChanged(user => {
             if (user) {
                 currentUser = user;
                 db.ref('users/' + user.uid).on('value', snapshot => {
-                    if (snapshot.exists()) {
-                        let data = snapshot.val();
-                        
-                        // 檢查 Ban 封鎖狀態
-                        if (data.banned) {
-                            alert("❌ 您的企業帳號已被管理員封鎖！無法進入遊戲。");
-                            auth.signOut();
-                            return;
-                        }
+                    let data = snapshot.exists() ? snapshot.val() : {};
 
-                        playerData = { ...playerData, ...data };
-                        if (!playerData.inventory) playerData.inventory = {};
-                        if (!playerData.unlockedTechs) playerData.unlockedTechs = {};
-                        
-                        // 倉庫數量四捨五入修正
-                        Object.keys(playerData.inventory).forEach(k => {
-                            playerData.inventory[k] = Math.round(playerData.inventory[k] || 0);
-                        });
-
-                        document.getElementById('display-name').innerText = playerData.companyName || "企業用戶";
-                        document.getElementById('auth-sec').style.setProperty('display', 'none', 'important');
-                        document.getElementById('game-sec').style.display = 'block';
-
-                        // 判斷是否為管理員
-                        if (user.email === ADMIN_EMAIL || playerData.isAdmin) {
-                            document.getElementById('admin-tab-btn').style.display = 'inline-flex';
-                            document.getElementById('admin-tag').style.display = 'inline-block';
-                            listenToAdminUserData();
-                        }
-
-                        // 顯示私訊
-                        if (playerData.message) {
-                            document.getElementById('msg-card').style.display = 'block';
-                            document.getElementById('msg-content').innerText = playerData.message;
-                        } else {
-                            document.getElementById('msg-card').style.display = 'none';
-                        }
-
-                        // 離線 10 小時收益結算
-                        processOfflineEarnings();
+                    // 自動判斷並補齊管理員權限
+                    if (user.email === ADMIN_EMAIL) {
+                        data.isAdmin = true;
+                        if (!data.companyName) data.companyName = "最高聯邦總局 (ADMIN)";
                     }
+
+                    if (data.banned) {
+                        alert("❌ 您的企業帳號已被管理員封鎖！無法進入遊戲。");
+                        auth.signOut();
+                        return;
+                    }
+
+                    playerData = { ...playerData, ...data };
+                    if (!playerData.inventory) playerData.inventory = {};
+                    if (!playerData.unlockedTechs) playerData.unlockedTechs = {};
+                    
+                    // 倉庫庫存四捨五入取整數
+                    Object.keys(playerData.inventory).forEach(k => {
+                        playerData.inventory[k] = Math.round(playerData.inventory[k] || 0);
+                    });
+
+                    document.getElementById('display-name').innerText = playerData.companyName || "企業用戶";
+                    document.getElementById('auth-sec').style.setProperty('display', 'none', 'important');
+                    document.getElementById('game-sec').style.display = 'block';
+
+                    // 判斷並解鎖管理員專屬控制頁籤
+                    if (user.email === ADMIN_EMAIL || playerData.isAdmin) {
+                        document.getElementById('admin-tab-btn').style.display = 'inline-flex';
+                        document.getElementById('admin-tag').style.display = 'inline-block';
+                        listenToAdminUserData();
+                    }
+
+                    // 顯示系統私訊
+                    if (playerData.message) {
+                        document.getElementById('msg-card').style.display = 'block';
+                        document.getElementById('msg-content').innerText = playerData.message;
+                    } else {
+                        document.getElementById('msg-card').style.display = 'none';
+                    }
+
+                    // 離線 10 小時收益計算
+                    processOfflineEarnings();
                 });
 
                 listenToPriceMultipliers();
@@ -494,7 +479,7 @@
             }
         });
 
-        // 離線 10 小時收益計算邏輯
+        // 離線 10 小時收益結算邏輯
         function processOfflineEarnings() {
             if (!playerData.lastTimestamp) {
                 playerData.lastTimestamp = Date.now();
@@ -563,12 +548,26 @@
             if (isSignUpMode) {
                 let company = document.getElementById('auth-company').value.trim();
                 if (!company) return showToast("⚠️ 請輸入企業名稱！");
+                
                 auth.createUserWithEmailAndPassword(email, pass).then(cred => {
-                    playerData.companyName = company;
-                    savePlayerData();
+                    let initData = {
+                        companyName: company,
+                        cash: 50000,
+                        inventory: {},
+                        unlockedTechs: {},
+                        isAdmin: (email === ADMIN_EMAIL)
+                    };
+                    db.ref('users/' + cred.user.uid).set(initData);
+                    showToast("🎉 註冊成功！歡迎進入遊戲。");
                 }).catch(err => showToast("❌ 註冊失敗: " + err.message));
             } else {
-                auth.signInWithEmailAndPassword(email, pass).catch(err => showToast("❌ 登入失敗: " + err.message));
+                auth.signInWithEmailAndPassword(email, pass).catch(err => {
+                    if (err.code === 'auth/user-not-found') {
+                        showToast("❌ 帳號不存在！請先點擊【切換至：註冊新帳號】來創建帳號。");
+                    } else {
+                        showToast("❌ 登入失敗: " + err.message);
+                    }
+                });
             }
         }
 
@@ -829,7 +828,6 @@
             let val = document.getElementById('npc-sell-item').value;
             let qtyInput = document.getElementById('npc-sell-qty').value;
             
-            // 嚴格防止小數點
             if (qtyInput.includes('.')) return showToast("⚠️ 物品最小單位為 1，數量不可輸入小數點！");
             let qty = Math.round(parseFloat(qtyInput) || 0);
             
@@ -852,7 +850,6 @@
             let qtyInput = document.getElementById('sell-qty').value;
             let priceInput = document.getElementById('sell-price').value;
 
-            // 嚴格檢測小數點
             if (qtyInput.includes('.')) {
                 return showToast("⚠️ 物品最小單位為 1，數量嚴禁輸入小數點！");
             }
@@ -899,7 +896,7 @@
                 Object.keys(data).forEach(key => {
                     let ord = data[key];
 
-                    // 【自動掃描清理】若掛單數量包含小數點，自動強制下架歸還
+                    // 自動清理帶有小數點的掛單
                     if (ord.qty % 1 !== 0) {
                         db.ref('market/' + key).remove();
                         db.ref('users/' + ord.sellerUid + '/inventory/' + ord.itemKey).transaction(q => Math.round((q || 0) + ord.qty));
