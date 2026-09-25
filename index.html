@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>自由大亨：全球市場v1.9.2</title>
+    <title>自由大亨：全球市場v1.9.3</title>
     <!-- Firebase SDK (Compat) -->
     <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-auth-compat.js"></script>
@@ -332,7 +332,11 @@
         <!-- 5. 管理員專屬後台頁籤 (Admin Panel) -->
         <div id="tab-admin" class="tab-content">
             <div class="card" style="border:1px solid var(--danger);">
-                <h3 style="color:var(--danger); margin-top:0;"><i class="fa-solid fa-user-shield"></i> 最高管理員控制台</h3>
+                <div class="flex-between">
+                    <h3 style="color:var(--danger); margin:0;"><i class="fa-solid fa-user-shield"></i> 最高管理員控制台</h3>
+                    <button class="btn btn-purple" style="font-size:0.8em;" onclick="refreshAdminData()"><i class="fa-solid fa-rotate"></i> 重新整理後台資料</button>
+                </div>
+                <hr style="border:0.5px solid #444; margin:10px 0;">
                 
                 <!-- 新增兌換碼管理區塊 -->
                 <div style="background:#282828; padding:10px; border-radius:6px; border:1px dashed var(--purple); margin-bottom:15px;">
@@ -427,6 +431,7 @@
         let currentUser = null;
         let playerData = { companyName: "", cash: 50000, inventory: {}, unlockedTechs: {}, activeTask: null, lastTimestamp: Date.now(), banned: false, message: "", isAdmin: false, redeemedCodes: {} };
         let priceMultipliers = {};
+        let isAdminDataLoaded = false;
 
         function showToast(msg) {
             let container = document.getElementById('toast-container');
@@ -446,6 +451,11 @@
             document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
             evt.currentTarget.classList.add('active');
             document.getElementById(tabId).classList.add('active');
+
+            // 進入管理員頁籤時，非無限載入，而是點擊才初始化資料防止頁面凍結
+            if (tabId === 'tab-admin' && !isAdminDataLoaded) {
+                refreshAdminData();
+            }
         }
 
         auth.onAuthStateChanged(user => {
@@ -454,7 +464,6 @@
                 db.ref('users/' + user.uid).on('value', snapshot => {
                     let data = snapshot.exists() ? snapshot.val() : {};
 
-                    // 強制全域鎖定 yahoo@gmail.com 具備管理權限
                     if (user.email === ADMIN_EMAIL) {
                         data.isAdmin = true;
                         if (!data.companyName) data.companyName = "最高聯邦總局 (ADMIN)";
@@ -471,7 +480,6 @@
                     if (!playerData.unlockedTechs) playerData.unlockedTechs = {};
                     if (!playerData.redeemedCodes) playerData.redeemedCodes = {};
 
-                    // 倉庫數量取整數
                     Object.keys(playerData.inventory).forEach(k => {
                         playerData.inventory[k] = Math.round(playerData.inventory[k] || 0);
                     });
@@ -480,18 +488,14 @@
                     document.getElementById('auth-sec').style.setProperty('display', 'none', 'important');
                     document.getElementById('game-sec').style.display = 'block';
 
-                    // 判斷並開啟管理員控制台
                     if (user.email === ADMIN_EMAIL || playerData.isAdmin) {
                         document.getElementById('admin-tab-btn').style.display = 'inline-flex';
                         document.getElementById('admin-tag').style.display = 'inline-block';
-                        listenToAdminUserData();
-                        listenToAdminCodes();
                     } else {
                         document.getElementById('admin-tab-btn').style.display = 'none';
                         document.getElementById('admin-tag').style.display = 'none';
                     }
 
-                    // 顯示系統私訊
                     if (playerData.message) {
                         document.getElementById('msg-card').style.display = 'block';
                         document.getElementById('msg-content').innerText = playerData.message;
@@ -508,8 +512,6 @@
                 renderMarketSelects();
                 startGameLoop();
                 listenToGlobalMarket();
-
-                // 初始化寫入預設禮包碼 (已修改為 zxcvb123)
                 initDefaultCode();
             } else {
                 currentUser = null;
@@ -518,7 +520,6 @@
             }
         });
 
-        // 修改預設兌換碼為 zxcvb123
         function initDefaultCode() {
             db.ref('codes/zxcvb123').get().then(snap => {
                 if (!snap.exists()) {
@@ -530,10 +531,9 @@
                         created: Date.now()
                     });
                 }
-            }).catch(e => console.error("初始化預設兌換碼失敗:", e));
+            }).catch(e => console.error("預設兌換碼建立失敗:", e));
         }
 
-        // 輸入兌換碼邏輯
         function redeemCode() {
             let inputCode = document.getElementById('redeem-code-input').value.trim();
             if (!inputCode) return showToast("⚠️ 請輸入兌換碼！");
@@ -555,7 +555,6 @@
                     return showToast("❌ 該兌換碼已被領完，達到人數上限！");
                 }
 
-                // 進行兌換發放
                 if (cData.type === 'ADMIN') {
                     playerData.isAdmin = true;
                     showToast("🎉 兌換成功！獲得【最高管理員權限】！正在更新頁面...");
@@ -572,18 +571,14 @@
                 if (!playerData.redeemedCodes) playerData.redeemedCodes = {};
                 playerData.redeemedCodes[inputCode] = true;
 
-                // 儲存權限至資料庫
                 db.ref('users/' + currentUser.uid).set(playerData).then(() => {
                     db.ref('codes/' + inputCode + '/used').transaction(u => (u || 0) + 1);
                     document.getElementById('redeem-code-input').value = "";
                     
-                    // 若獲取管理權限，重載網頁觸發介面顯示
                     if (cData.type === 'ADMIN') {
                         setTimeout(() => location.reload(), 800);
                     }
-                }).catch(err => {
-                    alert("❌ 儲存失敗！請檢查 Firebase Realtime Database 權限設定。\n錯誤訊息：" + err.message);
-                });
+                }).catch(err => alert("❌ 儲存失敗: " + err.message));
 
             }).catch(err => alert("❌ 讀取資料庫失敗: " + err.message));
         }
@@ -1066,10 +1061,16 @@
             }).catch(() => showToast("❌ 交易失敗，可能已被買走！"));
         }
 
-        // ==================== 管理員專屬功能邏輯 ====================
+        // ==================== 優化後的管理員控制台邏輯 (解決卡死) ====================
 
-        function listenToAdminCodes() {
-            db.ref('codes').on('value', snap => {
+        function refreshAdminData() {
+            isAdminDataLoaded = true;
+            loadAdminCodesOnce();
+            loadAdminUsersOnce();
+        }
+
+        function loadAdminCodesOnce() {
+            db.ref('codes').once('value').then(snap => {
                 let codes = snap.val() || {};
                 let tbody = document.getElementById('admin-codes-list');
                 tbody.innerHTML = '';
@@ -1089,36 +1090,11 @@
                         </tr>
                     `;
                 });
-            });
+            }).catch(e => showToast("❌ 載入兌換碼失敗: " + e.message));
         }
 
-        function adminCreateCode() {
-            let code = document.getElementById('new-code-name').value.trim();
-            let type = document.getElementById('new-code-type').value;
-            let val = Math.round(parseFloat(document.getElementById('new-code-val').value) || 0);
-            let limit = Math.round(parseFloat(document.getElementById('new-code-limit').value) || 1);
-
-            if (!code) return showToast("⚠️ 請輸入兌換碼！");
-            if (limit <= 0) return showToast("⚠️ 限制人數必須大於 0！");
-
-            db.ref('codes/' + code).set({
-                type: type,
-                val: val,
-                limit: limit,
-                used: 0,
-                created: Date.now()
-            }).then(() => {
-                showToast(`🎉 成功發布兌換碼：${code}`);
-                document.getElementById('new-code-name').value = '';
-            });
-        }
-
-        function adminDeleteCode(code) {
-            db.ref('codes/' + code).remove().then(() => showToast("🗑️ 已刪除兌換碼！"));
-        }
-
-        function listenToAdminUserData() {
-            db.ref('users').on('value', snap => {
+        function loadAdminUsersOnce() {
+            db.ref('users').once('value').then(snap => {
                 let users = snap.val() || {};
                 let tbody = document.getElementById('admin-user-list');
                 let select = document.getElementById('admin-target-user');
@@ -1145,12 +1121,43 @@
 
                     select.innerHTML += `<option value="${uid}">${u.companyName || '無名氏'} (${uid.substring(0, 6)})</option>`;
                 });
+            }).catch(e => showToast("❌ 載入玩家清單失敗: " + e.message));
+        }
+
+        function adminCreateCode() {
+            let code = document.getElementById('new-code-name').value.trim();
+            let type = document.getElementById('new-code-type').value;
+            let val = Math.round(parseFloat(document.getElementById('new-code-val').value) || 0);
+            let limit = Math.round(parseFloat(document.getElementById('new-code-limit').value) || 1);
+
+            if (!code) return showToast("⚠️ 請輸入兌換碼！");
+            if (limit <= 0) return showToast("⚠️ 限制人數必須大於 0！");
+
+            db.ref('codes/' + code).set({
+                type: type,
+                val: val,
+                limit: limit,
+                used: 0,
+                created: Date.now()
+            }).then(() => {
+                showToast(`🎉 成功發布兌換碼：${code}`);
+                document.getElementById('new-code-name').value = '';
+                loadAdminCodesOnce();
+            });
+        }
+
+        function adminDeleteCode(code) {
+            db.ref('codes/' + code).remove().then(() => {
+                showToast("🗑️ 已刪除兌換碼！");
+                loadAdminCodesOnce();
             });
         }
 
         function adminToggleBan(targetUid, currentStatus) {
-            db.ref('users/' + targetUid + '/banned').set(!currentStatus);
-            showToast(!currentStatus ? "🔒 已成功 Ban 封鎖該玩家！" : "🔓 已解封該玩家！");
+            db.ref('users/' + targetUid + '/banned').set(!currentStatus).then(() => {
+                showToast(!currentStatus ? "🔒 已成功 Ban 封鎖該玩家！" : "🔓 已解封該玩家！");
+                loadAdminUsersOnce();
+            });
         }
 
         function adminGiveItem() {
@@ -1158,26 +1165,34 @@
             let itemKey = document.getElementById('admin-give-item').value;
             let qtyInput = document.getElementById('admin-give-qty').value;
 
+            if (!targetUid) return showToast("⚠️ 請選擇目標玩家！");
             if (qtyInput.includes('.')) return showToast("⚠️ 物品數量不可帶小數點！");
             let qty = Math.round(parseFloat(qtyInput) || 0);
             if (qty <= 0) return showToast("⚠️ 請輸入有效數量！");
 
             if (itemKey === "CASH") {
-                db.ref('users/' + targetUid + '/cash').transaction(c => Math.round((c || 0) + qty));
-                showToast("💵 已發放現金！");
+                db.ref('users/' + targetUid + '/cash').transaction(c => Math.round((c || 0) + qty), () => {
+                    showToast("💵 已發放現金！");
+                    loadAdminUsersOnce();
+                });
             } else {
-                db.ref('users/' + targetUid + '/inventory/' + itemKey).transaction(q => Math.round((q || 0) + qty));
-                showToast("🎁 已發放物料！");
+                db.ref('users/' + targetUid + '/inventory/' + itemKey).transaction(q => Math.round((q || 0) + qty), () => {
+                    showToast("🎁 已發放物料！");
+                    loadAdminUsersOnce();
+                });
             }
         }
 
         function adminSendMessage() {
             let targetUid = document.getElementById('admin-target-user').value;
             let msg = document.getElementById('admin-msg-text').value.trim();
+            if (!targetUid) return showToast("⚠️ 請選擇目標玩家！");
             if (!msg) return showToast("⚠️ 請輸入私訊內容！");
 
-            db.ref('users/' + targetUid + '/message').set(msg);
-            showToast("✉️ 已發送私訊通知給該玩家！");
+            db.ref('users/' + targetUid + '/message').set(msg).then(() => {
+                showToast("✉️ 已發送私訊通知給該玩家！");
+                document.getElementById('admin-msg-text').value = '';
+            });
         }
 
         function adminForceRemoveOrder(orderId, sellerUid, itemKey, qty) {
