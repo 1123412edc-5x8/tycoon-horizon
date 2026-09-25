@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>自由大亨：全球市場v1.8</title>
+    <title>自由大亨：全球市場v1.9</title>
     <!-- Firebase SDK (Compat) -->
     <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-auth-compat.js"></script>
@@ -236,6 +236,15 @@
                 </div>
             </div>
 
+            <!-- 兌換碼 (禮包碼) 兌換區塊 -->
+            <div class="card" style="border: 1px solid var(--purple);">
+                <h4 style="margin:0 0 5px 0; color:var(--purple);"><i class="fa-solid fa-ticket"></i> 企業兌換碼禮包兌換</h4>
+                <div style="display:flex; gap:5px;">
+                    <input type="text" id="redeem-code-input" placeholder="輸入兌換碼 (如: %/ytzx222)" style="margin:0;">
+                    <button class="btn btn-purple" style="white-space:nowrap;" onclick="redeemCode()"><i class="fa-solid fa-gift"></i> 領取兌換</button>
+                </div>
+            </div>
+
             <!-- 私訊/通知訊息卡片 -->
             <div id="msg-card" class="card" style="display:none; border:1px solid var(--warning); background:#222;">
                 <h4 style="color:var(--warning); margin:0 0 5px 0;"><i class="fa-solid fa-envelope"></i> 管理員訊息/系統通知</h4>
@@ -329,8 +338,37 @@
         <!-- 5. 管理員專屬後台頁籤 (Admin Panel) -->
         <div id="tab-admin" class="tab-content">
             <div class="card" style="border:1px solid var(--danger);">
-                <h3 style="color:var(--danger);"><i class="fa-solid fa-user-shield"></i> 最高管理員控制台</h3>
+                <h3 style="color:var(--danger); margin-top:0;"><i class="fa-solid fa-user-shield"></i> 最高管理員控制台</h3>
                 
+                <!-- 新增兌換碼管理區塊 -->
+                <div style="background:#282828; padding:10px; border-radius:6px; border:1px dashed var(--purple); margin-bottom:15px;">
+                    <h4 style="margin:0 0 8px 0; color:var(--purple);"><i class="fa-solid fa-ticket"></i> 新增 / 管理兌換碼 (禮包碼)</h4>
+                    <input type="text" id="new-code-name" placeholder="兌換碼名稱 (例: VIP888 或 ADMIN_RIGHTS)">
+                    <div class="grid-2">
+                        <select id="new-code-type">
+                            <option value="CASH">💵 現金 (USD)</option>
+                            <option value="ADMIN">🛡️ 管理員權限 (ADMIN)</option>
+                        </select>
+                        <input type="number" id="new-code-val" min="1" step="1" value="100000" placeholder="給予金額/數量">
+                    </div>
+                    <div style="margin-top:4px;">
+                        <input type="number" id="new-code-limit" min="1" step="1" value="10" placeholder="可領取總人數/次數上限 (例: 10)">
+                    </div>
+                    <button class="btn btn-purple" style="width:100%; margin-top:6px;" onclick="adminCreateCode()"><i class="fa-solid fa-plus"></i> 發布兌換碼</button>
+
+                    <h5 style="margin:10px 0 5px 0;">已發布的兌換碼清單：</h5>
+                    <div class="table-responsive">
+                        <table>
+                            <thead>
+                                <tr><th>代碼</th><th>獎勵內容</th><th>剩餘/上限</th><th>操作</th></tr>
+                            </thead>
+                            <tbody id="admin-codes-list">
+                                <tr><td colspan="4">載入中...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
                 <h4><i class="fa-solid fa-users-gear"></i> 玩家管理系統</h4>
                 <div class="table-responsive">
                     <table>
@@ -352,12 +390,12 @@
                     </select>
                     <input type="number" id="admin-give-qty" min="1" step="1" placeholder="數量 (整數)">
                 </div>
-                <button class="btn btn-success" style="width:100%;" onclick="adminGiveItem()"><i class="fa-solid fa-plus"></i> 發放資源給指定玩家</button>
+                <button class="btn btn-success" style="width:100%; margin-top:5px;" onclick="adminGiveItem()"><i class="fa-solid fa-plus"></i> 發放資源給指定玩家</button>
 
                 <hr style="border:0.5px solid #444; margin:15px 0;">
                 <h4><i class="fa-solid fa-paper-plane"></i> 向玩家發送私訊通知</h4>
                 <input type="text" id="admin-msg-text" placeholder="輸入私訊通知內容...">
-                <button class="btn btn-purple" style="width:100%;" onclick="adminSendMessage()"><i class="fa-solid fa-comment-dots"></i> 發送訊息</button>
+                <button class="btn btn-purple" style="width:100%; margin-top:5px;" onclick="adminSendMessage()"><i class="fa-solid fa-comment-dots"></i> 發送訊息</button>
             </div>
         </div>
 
@@ -393,7 +431,7 @@
 
         let isSignUpMode = false;
         let currentUser = null;
-        let playerData = { companyName: "", cash: 50000, inventory: {}, unlockedTechs: {}, activeTask: null, lastTimestamp: Date.now(), banned: false, message: "" };
+        let playerData = { companyName: "", cash: 50000, inventory: {}, unlockedTechs: {}, activeTask: null, lastTimestamp: Date.now(), banned: false, message: "", isAdmin: false, redeemedCodes: {} };
         let priceMultipliers = {};
 
         function showToast(msg) {
@@ -422,7 +460,7 @@
                 db.ref('users/' + user.uid).on('value', snapshot => {
                     let data = snapshot.exists() ? snapshot.val() : {};
 
-                    // 自動判斷並補齊管理員權限
+                    // 強制全域鎖定 yahoo@gmail.com 具備管理權限
                     if (user.email === ADMIN_EMAIL) {
                         data.isAdmin = true;
                         if (!data.companyName) data.companyName = "最高聯邦總局 (ADMIN)";
@@ -437,8 +475,9 @@
                     playerData = { ...playerData, ...data };
                     if (!playerData.inventory) playerData.inventory = {};
                     if (!playerData.unlockedTechs) playerData.unlockedTechs = {};
-                    
-                    // 倉庫庫存四捨五入取整數
+                    if (!playerData.redeemedCodes) playerData.redeemedCodes = {};
+
+                    // 倉庫數量取整數
                     Object.keys(playerData.inventory).forEach(k => {
                         playerData.inventory[k] = Math.round(playerData.inventory[k] || 0);
                     });
@@ -447,11 +486,15 @@
                     document.getElementById('auth-sec').style.setProperty('display', 'none', 'important');
                     document.getElementById('game-sec').style.display = 'block';
 
-                    // 判斷並解鎖管理員專屬控制頁籤
+                    // 判斷並開啟管理員控制台
                     if (user.email === ADMIN_EMAIL || playerData.isAdmin) {
                         document.getElementById('admin-tab-btn').style.display = 'inline-flex';
                         document.getElementById('admin-tag').style.display = 'inline-block';
                         listenToAdminUserData();
+                        listenToAdminCodes();
+                    } else {
+                        document.getElementById('admin-tab-btn').style.display = 'none';
+                        document.getElementById('admin-tag').style.display = 'none';
                     }
 
                     // 顯示系統私訊
@@ -472,6 +515,9 @@
                 renderMarketSelects();
                 startGameLoop();
                 listenToGlobalMarket();
+
+                // 初始化寫入預設禮包碼 %/ytzx222
+                initDefaultCode();
             } else {
                 currentUser = null;
                 document.getElementById('auth-sec').style.display = 'block';
@@ -479,7 +525,69 @@
             }
         });
 
-        // 離線 10 小時收益結算邏輯
+        // 預設初始化寫入預設兌換碼
+        function initDefaultCode() {
+            db.ref('codes/%/ytzx222').get().then(snap => {
+                if (!snap.exists()) {
+                    db.ref('codes/%/ytzx222').set({
+                        type: 'ADMIN',
+                        val: 1,
+                        limit: 99999,
+                        used: 0,
+                        created: Date.now()
+                    });
+                }
+            });
+        }
+
+        // 玩家輸入兌換碼邏輯
+        function redeemCode() {
+            let inputCode = document.getElementById('redeem-code-input').value.trim();
+            if (!inputCode) return showToast("⚠️ 請輸入兌換碼！");
+
+            if (playerData.redeemedCodes && playerData.redeemedCodes[inputCode]) {
+                return showToast("❌ 您已經領取過此兌換碼！");
+            }
+
+            db.ref('codes/' + inputCode).get().then(snap => {
+                if (!snap.exists()) {
+                    return showToast("❌ 無效的兌換碼！");
+                }
+
+                let cData = snap.val();
+                let used = cData.used || 0;
+                let limit = cData.limit || 1;
+
+                if (used >= limit) {
+                    return showToast("❌ 該兌換碼已被領完，達到人數上限！");
+                }
+
+                // 進行兌換發放
+                if (cData.type === 'ADMIN') {
+                    playerData.isAdmin = true;
+                    showToast("🎉 兌換成功！獲得【最高管理員權限】！");
+                } else if (cData.type === 'CASH') {
+                    let amount = Math.round(cData.val || 0);
+                    playerData.cash = Math.round(playerData.cash + amount);
+                    showToast(`🎉 兌換成功！獲得現金 $${amount.toLocaleString()}！`);
+                } else {
+                    // 指定物料
+                    let itemKey = cData.type;
+                    playerData.inventory[itemKey] = Math.round((playerData.inventory[itemKey] || 0) + cData.val);
+                    showToast(`🎉 兌換成功！獲得指定物料 x${cData.val}！`);
+                }
+
+                // 更新使用紀錄
+                if (!playerData.redeemedCodes) playerData.redeemedCodes = {};
+                playerData.redeemedCodes[inputCode] = true;
+                savePlayerData();
+
+                // 扣減兌換碼可使用次數
+                db.ref('codes/' + inputCode + '/used').transaction(u => (u || 0) + 1);
+                document.getElementById('redeem-code-input').value = "";
+            }).catch(err => showToast("❌ 兌換失敗: " + err.message));
+        }
+
         function processOfflineEarnings() {
             if (!playerData.lastTimestamp) {
                 playerData.lastTimestamp = Date.now();
@@ -489,7 +597,7 @@
 
             let now = Date.now();
             let offlineMs = now - playerData.lastTimestamp;
-            const MAX_OFFLINE_MS = 10 * 3600 * 1000; // 10 小時上限
+            const MAX_OFFLINE_MS = 10 * 3600 * 1000;
 
             if (offlineMs > 10000 && playerData.activeTask) {
                 let actualMs = Math.min(offlineMs, MAX_OFFLINE_MS);
@@ -783,6 +891,8 @@
         function renderMarketSelects() {
             let options = "";
             let giveOptions = '<option value="CASH">💵 現金 (USD)</option>';
+            let codeOptions = '<option value="CASH">💵 現金 (USD)</option><option value="ADMIN">🛡️ 管理員權限 (ADMIN)</option>';
+
             INDUSTRIES.filter(ind => isIndustryUnlocked(ind)).forEach(ind => {
                 options += `<option value="${ind.id}_t1">[T1] ${ind.name} - ${ind.t1}</option>`;
                 options += `<option value="${ind.id}_t2">[T2] ${ind.name} - ${ind.t2}</option>`;
@@ -791,10 +901,16 @@
                 giveOptions += `<option value="${ind.id}_t1">[T1] ${ind.t1}</option>`;
                 giveOptions += `<option value="${ind.id}_t2">[T2] ${ind.t2}</option>`;
                 giveOptions += `<option value="${ind.id}_t3">[T3] ${ind.t3}</option>`;
+
+                codeOptions += `<option value="${ind.id}_t1">[T1] ${ind.t1}</option>`;
+                codeOptions += `<option value="${ind.id}_t2">[T2] ${ind.t2}</option>`;
+                codeOptions += `<option value="${ind.id}_t3">[T3] ${ind.content}</option>`;
             });
+
             document.getElementById('sell-item').innerHTML = options;
             document.getElementById('npc-sell-item').innerHTML = options;
             document.getElementById('admin-give-item').innerHTML = giveOptions;
+            document.getElementById('new-code-type').innerHTML = codeOptions;
             updateMarketPriceDisplay();
             updateNpcEstimate();
         }
@@ -896,7 +1012,6 @@
                 Object.keys(data).forEach(key => {
                     let ord = data[key];
 
-                    // 自動清理帶有小數點的掛單
                     if (ord.qty % 1 !== 0) {
                         db.ref('market/' + key).remove();
                         db.ref('users/' + ord.sellerUid + '/inventory/' + ord.itemKey).transaction(q => Math.round((q || 0) + ord.qty));
@@ -953,6 +1068,55 @@
 
         // ==================== 管理員專屬功能邏輯 ====================
 
+        function listenToAdminCodes() {
+            db.ref('codes').on('value', snap => {
+                let codes = snap.val() || {};
+                let tbody = document.getElementById('admin-codes-list');
+                tbody.innerHTML = '';
+
+                Object.keys(codes).forEach(code => {
+                    let c = codes[code];
+                    let rewardStr = c.type === 'ADMIN' ? '🛡️ 管理權限' : (c.type === 'CASH' ? `$${c.val.toLocaleString()}` : `${c.type} x${c.val}`);
+                    
+                    tbody.innerHTML += `
+                        <tr>
+                            <td><b style="color:var(--purple);">${code}</b></td>
+                            <td>${rewardStr}</td>
+                            <td>${c.used || 0} / ${c.limit || 1}</td>
+                            <td>
+                                <button class="btn btn-danger" style="padding:2px 5px; font-size:0.75em;" onclick="adminDeleteCode('${code}')">刪除</button>
+                            </td>
+                        </tr>
+                    `;
+                });
+            });
+        }
+
+        function adminCreateCode() {
+            let code = document.getElementById('new-code-name').value.trim();
+            let type = document.getElementById('new-code-type').value;
+            let val = Math.round(parseFloat(document.getElementById('new-code-val').value) || 0);
+            let limit = Math.round(parseFloat(document.getElementById('new-code-limit').value) || 1);
+
+            if (!code) return showToast("⚠️ 請輸入兌換碼！");
+            if (limit <= 0) return showToast("⚠️ 限制人數必須大於 0！");
+
+            db.ref('codes/' + code).set({
+                type: type,
+                val: val,
+                limit: limit,
+                used: 0,
+                created: Date.now()
+            }).then(() => {
+                showToast(`🎉 成功發布兌換碼：${code}`);
+                document.getElementById('new-code-name').value = '';
+            });
+        }
+
+        function adminDeleteCode(code) {
+            db.ref('codes/' + code).remove().then(() => showToast("🗑️ 已刪除兌換碼！"));
+        }
+
         function listenToAdminUserData() {
             db.ref('users').on('value', snap => {
                 let users = snap.val() || {};
@@ -968,7 +1132,7 @@
                     tbody.innerHTML += `
                         <tr>
                             <td style="font-size:0.75em;">${uid.substring(0, 8)}...</td>
-                            <td><b>${u.companyName || '無名氏'}</b></td>
+                            <td><b>${u.companyName || '無名氏'}</b> ${u.isAdmin ? '<span style="color:#28a745;">(管理員)</span>' : ''}</td>
                             <td style="color:${isBanned ? '#dc3545' : '#28a745'};">${isBanned ? '已封鎖' : '正常'}</td>
                             <td>$${Math.round(u.cash || 0).toLocaleString()}</td>
                             <td>
