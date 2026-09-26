@@ -1,3 +1,20 @@
+// Firebase 初始化設定
+const firebaseConfig = {
+    apiKey: "AIzaSyA8GiYixLGmW73CYg340D5xJTu_15SYlFA",
+    authDomain: "tycoon-horizon-85f43.firebaseapp.com",
+    databaseURL: "https://tycoon-horizon-85f43-default-rtdb.firebaseio.com",
+    projectId: "tycoon-horizon-85f43",
+    storageBucket: "tycoon-horizon-85f43.firebasestorage.app",
+    messagingSenderId: "808593962056",
+    appId: "1:808593962056:web:e015411fc7f4f3e76d547d",
+    measurementId: "G-9D863R525T"
+};
+
+firebase.initializeApp(firebaseConfig);
+const auth = firebase.auth();
+const db = firebase.database();
+
+const ADMIN_EMAIL = "yahoo@gmail.com";
 // 全球 9 大領域 135 項完整產業鏈資料庫
 const GAME_INDUSTRIES = [
   // 1. 能源與化學 (energy)
