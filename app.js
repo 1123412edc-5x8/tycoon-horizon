@@ -201,11 +201,12 @@ let playerData = { companyName: "", cash: 50000, inventory: {}, items: {}, owned
 let priceMultipliers = {};
 let isAdminDataLoaded = false;
 let currentCategoryFilter = "all";
-let isInitialized = false; // 新增：避免 Firebase 重複綁定與高頻刷新標記
+let isInitialized = false;
 
 // Toast 通知
 function showToast(msg) {
     let container = document.getElementById('toast-container');
+    if (!container) return;
     let toast = document.createElement('div');
     toast.className = 'toast-item';
     toast.innerText = msg;
@@ -234,7 +235,7 @@ function switchTab(evt, tabId) {
     }
 }
 
-// 監聽 Auth（修復：防重複初始化與過載問題）
+// 監聽 Auth
 auth.onAuthStateChanged(user => {
     if (user) {
         currentUser = user;
@@ -281,10 +282,9 @@ auth.onAuthStateChanged(user => {
             renderCategoryButtons();
             renderProductionTab();
             renderItemsTab();
-            updateUI(); // 確保資料更新時順帶重新計算並刷新 UI
+            updateUI();
         });
 
-        // 防止開啟頁面時多次綁定全局監聽
         if (!isInitialized) {
             listenToPriceMultipliers();
             renderIndustryTree();
@@ -443,11 +443,12 @@ function stopProductionTask() {
     }
 }
 
-// 核心計時器（修復：優化繪製，降低繪製次數避免卡頓）
+// 核心計時器
 function startGameLoop() {
     setInterval(() => {
         let isSpeeding = playerData.speedBuffUntil && playerData.speedBuffUntil > Date.now();
-        document.getElementById('speed-buff-tag').style.display = isSpeeding ? 'inline-block' : 'none';
+        let speedBuffTag = document.getElementById('speed-buff-tag');
+        if (speedBuffTag) speedBuffTag.style.display = isSpeeding ? 'inline-block' : 'none';
 
         if (playerData.activeTask) {
             let task = playerData.activeTask;
@@ -473,22 +474,24 @@ function startGameLoop() {
                 }
                 task.progress = 0;
                 savePlayerData();
-                updateUI(); // 生產完成獲得收益時，主動更新介面
+                updateUI();
             }
         } else {
             document.getElementById('global-task-name').innerHTML = "💤 工廠閒置中";
             document.getElementById('global-progress-bar').style.width = "0%";
             document.getElementById('stop-task-btn').style.display = "none";
         }
-        // 注意：原先造成高頻重繪的 updateUI() 已經從此處迴圈中移除
     }, 100);
 }
 
-// UI 渲染（修復：採用比對機制，有實際變更才修改 DOM）
+// UI 渲染
 function updateUI() {
-    document.getElementById('cash').innerText = '$' + Math.round(playerData.cash).toLocaleString();
+    let cashElem = document.getElementById('cash');
+    if (cashElem) cashElem.innerText = '$' + Math.round(playerData.cash).toLocaleString();
+    
     let ownedCount = Object.keys(playerData.ownedIndustries || {}).length;
-    document.getElementById('owned-industries-count').innerText = `${ownedCount} / ${GAME_INDUSTRIES.length}`;
+    let ownedElem = document.getElementById('owned-industries-count');
+    if (ownedElem) ownedElem.innerText = `${ownedCount} / ${GAME_INDUSTRIES.length}`;
 
     let detailHtml = "";
     Object.keys(playerData.inventory).forEach(itemKey => {
@@ -499,11 +502,11 @@ function updateUI() {
     });
 
     let container = document.getElementById('inventory-detail-list');
-    let finalHtml = detailHtml || "<div>倉庫目前空空如也</div>";
-    
-    // 比對 HTML 是否發生變化，以減少不必要的頁面 Layout 重新計算
-    if (container.innerHTML !== finalHtml) {
-        container.innerHTML = finalHtml;
+    if (container) {
+        let finalHtml = detailHtml || "<div>倉庫目前空空如也</div>";
+        if (container.innerHTML !== finalHtml) {
+            container.innerHTML = finalHtml;
+        }
     }
 }
 
@@ -636,8 +639,25 @@ function renderMarketSelects() {
         }
     });
 
-    document.getElementById('sell-item').innerHTML = options;
-    document.getElementById('npc-sell-item').innerHTML = options;
+    let sellElem = document.getElementById('sell-item');
+    let npcElem = document.getElementById('npc-sell-item');
+    if (sellElem) sellElem.innerHTML = options;
+    if (npcElem) npcElem.innerHTML = options;
+
+    // 動態充實管理員發放項目的選單
+    let adminGiveElem = document.getElementById('admin-give-item');
+    if (adminGiveElem) {
+        let adminOptions = `<option value="CASH">💵 現金 (USD)</option>`;
+        Object.keys(GAME_ITEMS).forEach(k => {
+            adminOptions += `<option value="${k}">🎁 [道具] ${GAME_ITEMS[k].name}</option>`;
+        });
+        GAME_INDUSTRIES.forEach(ind => {
+            if (ind.out !== '現金') {
+                adminOptions += `<option value="${ind.out}">📦 [物料] ${ind.out}</option>`;
+            }
+        });
+        adminGiveElem.innerHTML = adminOptions;
+    }
 }
 
 function getDynamicUnitPrice(itemKey) {
@@ -648,7 +668,9 @@ function getDynamicUnitPrice(itemKey) {
 }
 
 function updateMarketPriceDisplay() {
-    let val = document.getElementById('sell-item').value;
+    let sellItem = document.getElementById('sell-item');
+    if (!sellItem) return;
+    let val = sellItem.value;
     if (!val) return;
     let priceInfo = getDynamicUnitPrice(val);
     document.getElementById('selected-market-price').innerText = priceInfo.dynamicP;
@@ -656,7 +678,9 @@ function updateMarketPriceDisplay() {
 }
 
 function updateNpcEstimate() {
-    let val = document.getElementById('npc-sell-item').value;
+    let npcItem = document.getElementById('npc-sell-item');
+    if (!npcItem) return;
+    let val = npcItem.value;
     if (!val) return;
     let qty = Math.round(parseFloat(document.getElementById('npc-sell-qty').value) || 0);
     let priceInfo = getDynamicUnitPrice(val);
@@ -710,6 +734,7 @@ function postGlobalOrder() {
 function listenToGlobalMarket() {
     db.ref('market').on('value', snapshot => {
         let tbody = document.getElementById('global-market-list');
+        if (!tbody) return;
         tbody.innerHTML = '';
         let data = snapshot.val();
         if (!data) {
@@ -768,6 +793,7 @@ function loadAdminCodesOnce() {
     db.ref('codes').once('value').then(snap => {
         let codes = snap.val() || {};
         let tbody = document.getElementById('admin-codes-list');
+        if (!tbody) return;
         tbody.innerHTML = '';
 
         Object.keys(codes).forEach(code => {
@@ -789,6 +815,7 @@ function loadAdminUsersOnce() {
         let users = snap.val() || {};
         let tbody = document.getElementById('admin-user-list');
         let select = document.getElementById('admin-target-user');
+        if (!tbody || !select) return;
         tbody.innerHTML = '';
         select.innerHTML = '';
 
@@ -843,6 +870,8 @@ function adminGiveItem() {
 
     if (itemKey === "CASH") {
         db.ref('users/' + targetUid + '/cash').transaction(c => (c || 0) + qty);
+    } else if (GAME_ITEMS[itemKey]) {
+        db.ref('users/' + targetUid + '/items/' + itemKey).transaction(q => (q || 0) + qty);
     } else {
         db.ref('users/' + targetUid + '/inventory/' + itemKey).transaction(q => (q || 0) + qty);
     }
