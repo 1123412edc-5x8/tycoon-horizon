@@ -171,3 +171,41 @@ input, select {
     font-size: 0.75em;
     margin-left: 5px;
 }
+
+.buff-badge {
+    background: var(--purple);
+    color: white;
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-size: 0.75em;
+    margin-left: 5px;
+}
+
+/* 通知卡片關閉按鈕樣式 */
+.close-notice-btn {
+    position: absolute;
+    top: 6px;
+    right: 8px;
+    background: transparent;
+    border: none;
+    color: #888;
+    font-size: 1.1em;
+    font-weight: bold;
+    cursor: pointer;
+    padding: 2px 6px;
+    line-height: 1;
+}
+
+.close-notice-btn:hover {
+    color: #ffc107;
+}
+
+.item-card {
+    background: #222;
+    border: 1px solid #444;
+    border-radius: 6px;
+    padding: 10px;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+}
