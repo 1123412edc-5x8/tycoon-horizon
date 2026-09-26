@@ -1,269 +1,386 @@
 <!DOCTYPE html>
 <html lang="zh-TW">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>自由大亨：全球市場2.1</title>
-    
-    <!-- Firebase SDK (Compat) -->
-    <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-auth-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-database-compat.js"></script>
-    
-    <!-- Font Awesome 圖示庫 -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    
-    <!-- 自訂樣式 -->
-    <link rel="stylesheet" href="style.css">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>龐大產業帝國 (130+ 產業大亨)</title>
+  <style>
+    :root {
+      --bg-color: #0f172a;
+      --card-bg: #1e293b;
+      --accent: #3b82f6;
+      --text: #f8fafc;
+      --text-dim: #94a3b8;
+      --border: #334155;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: system-ui, -apple-system, sans-serif; }
+    body { background: var(--bg-color); color: var(--text); padding: 20px; }
+
+    .header {
+      display: flex; justify-content: space-between; align-items: center;
+      padding: 15px 20px; background: var(--card-bg); border-radius: 12px; margin-bottom: 20px;
+      border: 1px solid var(--border);
+    }
+    .stats { display: flex; gap: 20px; font-weight: bold; font-size: 1.1rem; }
+
+    /* 類別頁籤 */
+    .category-tabs {
+      display: flex; gap: 8px; overflow-x: auto; padding-bottom: 10px; margin-bottom: 15px;
+    }
+    .tab-btn {
+      background: var(--card-bg); color: var(--text-dim); border: 1px solid var(--border);
+      padding: 8px 16px; border-radius: 8px; cursor: pointer; white-space: nowrap; transition: 0.2s;
+    }
+    .tab-btn.active, .tab-btn:hover {
+      background: var(--accent); color: #fff; border-color: var(--accent);
+    }
+
+    /* 篩選等級 (上中下游) */
+    .tier-filters { display: flex; gap: 10px; margin-bottom: 20px; }
+    .filter-btn {
+      background: transparent; color: var(--text-dim); border: 1px solid var(--border);
+      padding: 4px 12px; border-radius: 20px; cursor: pointer; font-size: 0.85rem;
+    }
+    .filter-btn.active { background: #475569; color: #fff; }
+
+    /* 產業卡片網格 */
+    .industry-grid {
+      display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px;
+    }
+    .card {
+      background: var(--card-bg); border: 1px solid var(--border); border-radius: 12px;
+      padding: 16px; display: flex; flex-direction: column; justify-content: space-between;
+    }
+    .card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+    .card-title { font-size: 1.1rem; font-weight: bold; }
+    .tier-tag {
+      font-size: 0.75rem; padding: 2px 8px; border-radius: 4px; font-weight: bold;
+    }
+    .tier-1 { background: #065f46; color: #6ee7b7; }
+    .tier-2 { background: #1e40af; color: #93c5fd; }
+    .tier-3 { background: #831843; color: #f9a8d4; }
+
+    .card-info { font-size: 0.85rem; color: var(--text-dim); margin-bottom: 12px; line-height: 1.5; }
+    .buy-btn {
+      background: var(--accent); color: white; border: none; padding: 10px;
+      border-radius: 6px; cursor: pointer; font-weight: bold; width: 100%; transition: 0.2s;
+    }
+    .buy-btn:hover { opacity: 0.9; }
+    .buy-btn:disabled { background: #475569; cursor: not-allowed; }
+  </style>
 </head>
 <body>
 
-    <!-- Toast 浮動通知容器 -->
-    <div id="toast-container"></div>
-
-    <h2><i class="fa-solid fa-globe"></i> 自由大亨：全球市場</h2>
-    
-    <!-- 帳號登入 / 註冊區 -->
-    <div id="auth-sec" class="card">
-        <h3 id="auth-title"><i class="fa-solid fa-lock"></i> 企業帳號登入</h3>
-        <input type="email" id="auth-email" placeholder="電子郵件 (Email)"><br>
-        <input type="password" id="auth-pass" placeholder="密碼 (至少 6 位數)"><br>
-        <div id="company-name-box" style="display: none;">
-            <input type="text" id="auth-company" placeholder="企業名稱 (例: 泰坦重工)"><br>
-        </div>
-        <button class="btn btn-success" id="auth-btn" style="width:100%; margin-top:5px;" onclick="handleAuth()">
-            <i class="fa-solid fa-right-to-bracket"></i> 登入企業
-        </button>
-        <button class="btn btn-purple" style="width:100%; margin-top:5px;" onclick="toggleAuthMode()" id="toggle-btn">
-            <i class="fa-solid fa-user-plus"></i> 切換至：註冊新帳號
-        </button>
+  <div class="header">
+    <h1>🏭 龐大產業帝國</h1>
+    <div class="stats">
+      <span>💰 現金: $<span id="money-display">10,000</span></span>
+      <span>🏢 已擁有產業: <span id="owned-count">0</span>/135</span>
     </div>
+  </div>
 
-    <!-- 遊戲主體內容 -->
-    <div id="game-sec" style="display: none;">
+  <!-- 9 大產業分類頁籤 -->
+  <div class="category-tabs" id="category-tabs"></div>
 
-        <!-- 頂部即時生產狀態顯示列 -->
-        <div class="global-status-bar">
-            <div class="flex-between">
-                <div>
-                    <i class="fa-solid fa-gears fa-spin" style="color:var(--accent);"></i> <b>全域生產狀態：</b>
-                    <span id="global-task-name" style="color:#ffc107; font-weight:bold;">💤 工廠閒置中</span>
-                    <span id="speed-buff-tag" class="buff-badge" style="display:none;"><i class="fa-solid fa-bolt"></i> 生產加速中</span>
-                </div>
-                <button class="btn btn-danger" id="stop-task-btn" style="font-size:0.75em; padding: 3px 8px; display:none;" onclick="stopProductionTask()">
-                    <i class="fa-solid fa-circle-stop"></i> 停止生產
-                </button>
+  <!-- 階段篩選 (上/中/下游) -->
+  <div class="tier-filters" id="tier-filters">
+    <button class="filter-btn active" data-tier="all">全部階段</button>
+    <button class="filter-btn" data-tier="1">🌱 T1 基礎原物料</button>
+    <button class="filter-btn" data-tier="2">⚙️ T2 中游加工品</button>
+    <button class="filter-btn" data-tier="3">🛍️ T3 高階終端/零售</button>
+  </div>
+
+  <!-- 產業展示網格 -->
+  <div class="industry-grid" id="industry-grid"></div>
+
+  <script>
+    // 玩家狀態
+    let player = {
+      money: 10000,
+      owned: {} // { industryId: count }
+    };
+
+    // 9 大類別定義
+    const CATEGORIES = [
+      { id: 'all', name: '🌐 全部產業' },
+      { id: 'energy', name: '⚡ 能源與化學' },
+      { id: 'agri', name: '🌾 農業與食品' },
+      { id: 'heavy', name: '🏗️ 重工業與冶金' },
+      { id: 'light', name: '👕 輕工與紡織' },
+      { id: 'tech', name: '💻 高科技電子' },
+      { id: 'auto', name: '🚗 汽車與運輸' },
+      { id: 'aero', name: '🚀 航太與國防' },
+      { id: 'bio', name: '🧬 生技與醫療' },
+      { id: 'realty', name: '🏢 房地產與營建' }
+    ];
+
+    // 130+ 龐大產業資料庫 (每個類別 15 種，共 135 種)
+    const GAME_INDUSTRIES = [
+      // --- 1. 能源與化學 ---
+      { id: 'e1', name: '原油鑽井', cat: 'energy', tier: 1, cost: 2000, income: 50, in: '無', out: '原油' },
+      { id: 'e2', name: '天然氣井', cat: 'energy', tier: 1, cost: 2500, income: 65, in: '無', out: '天然氣' },
+      { id: 'e3', name: '鋰礦採掘場', cat: 'energy', tier: 1, cost: 3000, income: 80, in: '無', out: '鋰礦' },
+      { id: 'e4', name: '鈾礦露天場', cat: 'energy', tier: 1, cost: 5000, income: 150, in: '無', out: '鈾礦' },
+      { id: 'e5', name: '硫磺礦採集站', cat: 'energy', tier: 1, cost: 2200, income: 55, in: '無', out: '硫磺' },
+      { id: 'e6', name: '煉油廠', cat: 'energy', tier: 2, cost: 12000, income: 350, in: '原油', out: '汽油' },
+      { id: 'e7', name: '塑膠合成廠', cat: 'energy', tier: 2, cost: 15000, income: 420, in: '原油', out: '塑膠粒' },
+      { id: 'e8', name: '鋰電池製造廠', cat: 'energy', tier: 2, cost: 20000, income: 600, in: '鋰礦', out: '鋰電池' },
+      { id: 'e9', name: '濃縮鈾精煉廠', cat: 'energy', tier: 2, cost: 35000, income: 1100, in: '鈾礦', out: '濃縮鈾' },
+      { id: 'e10', name: '化學肥料廠', cat: 'energy', tier: 2, cost: 14000, income: 380, in: '硫磺', out: '複合肥' },
+      { id: 'e11', name: '航空燃料供應站', cat: 'energy', tier: 3, cost: 80000, income: 2800, in: '汽油', out: '現金' },
+      { id: 'e12', name: '核能發電站組件廠', cat: 'energy', tier: 3, cost: 150000, income: 5500, in: '濃縮鈾', out: '現金' },
+      { id: 'e13', name: '加油站連鎖', cat: 'energy', tier: 3, cost: 60000, income: 2100, in: '汽油', out: '現金' },
+      { id: 'e14', name: '高階潤滑油旗艦店', cat: 'energy', tier: 3, cost: 50000, income: 1800, in: '汽油', out: '現金' },
+      { id: 'e15', name: '氫能加氣站網', cat: 'energy', tier: 3, cost: 95000, income: 3400, in: '天然氣', out: '現金' },
+
+      // --- 2. 農業與食品 ---
+      { id: 'a1', name: '小麥農場', cat: 'agri', tier: 1, cost: 1000, income: 20, in: '無', out: '小麥' },
+      { id: 'a2', name: '大豆農場', cat: 'agri', tier: 1, cost: 1200, income: 25, in: '無', out: '大豆' },
+      { id: 'a3', name: '鮮奶牧場', cat: 'agri', tier: 1, cost: 1500, income: 35, in: '無', out: '生鮮牛奶' },
+      { id: 'a4', name: '畜牧養殖場', cat: 'agri', tier: 1, cost: 1800, income: 45, in: '無', out: '生肉' },
+      { id: 'a5', name: '精品咖啡莊園', cat: 'agri', tier: 1, cost: 2000, income: 50, in: '無', out: '咖啡豆' },
+      { id: 'a6', name: '麵粉磨坊', cat: 'agri', tier: 2, cost: 6000, income: 150, in: '小麥', out: '麵粉' },
+      { id: 'a7', name: '植物油壓榨廠', cat: 'agri', tier: 2, cost: 7500, income: 190, in: '大豆', out: '食用油' },
+      { id: 'a8', name: '起司乳品加工廠', cat: 'agri', tier: 2, cost: 9000, income: 240, in: '生鮮牛奶', out: '起司乳品' },
+      { id: 'a9', name: '肉品冷凍包裝廠', cat: 'agri', tier: 2, cost: 10000, income: 270, in: '生肉', out: '包裝肉品' },
+      { id: 'a10', name: '咖啡烘焙工坊', cat: 'agri', tier: 2, cost: 11000, income: 300, in: '咖啡豆', out: '熟咖啡豆' },
+      { id: 'a11', name: '連鎖快餐品牌', cat: 'agri', tier: 3, cost: 40000, income: 1200, in: '麵粉,包裝肉', out: '現金' },
+      { id: 'a12', name: '米其林高級餐廳', cat: 'agri', tier: 3, cost: 100000, income: 3600, in: '高級食材', out: '現金' },
+      { id: 'a13', name: '精品咖啡連鎖店', cat: 'agri', tier: 3, cost: 45000, income: 1400, in: '熟咖啡豆', out: '現金' },
+      { id: 'a14', name: '生鮮連鎖超市', cat: 'agri', tier: 3, cost: 55000, income: 1700, in: '農產品', out: '現金' },
+      { id: 'a15', name: '中央廚房餐盒廠', cat: 'agri', tier: 3, cost: 35000, income: 1050, in: '農產品', out: '現金' },
+
+      // --- 3. 重工業與冶金 ---
+      { id: 'h1', name: '露天鐵礦場', cat: 'heavy', tier: 1, cost: 2500, income: 60, in: '無', out: '鐵礦石' },
+      { id: 'h2', name: '銅礦採掘場', cat: 'heavy', tier: 1, cost: 2800, income: 70, in: '無', out: '銅礦石' },
+      { id: 'h3', name: '鋁土礦採掘場', cat: 'heavy', tier: 1, cost: 3200, income: 85, in: '無', out: '鋁土礦' },
+      { id: 'h4', name: '稀土礦採集站', cat: 'heavy', tier: 1, cost: 4500, income: 130, in: '無', out: '稀土原礦' },
+      { id: 'h5', name: '石灰石採石場', cat: 'heavy', tier: 1, cost: 1500, income: 35, in: '無', out: '石灰石' },
+      { id: 'h6', name: '大型煉鋼廠', cat: 'heavy', tier: 2, cost: 16000, income: 450, in: '鐵礦石', out: '鋼材' },
+      { id: 'h7', name: '銅線抽絲廠', cat: 'heavy', tier: 2, cost: 18000, income: 520, in: '銅礦石', out: '高純度銅線' },
+      { id: 'h8', name: '高純度矽晶圓廠', cat: 'heavy', tier: 2, cost: 30000, income: 950, in: '石英', out: '晶圓棒' },
+      { id: 'h9', name: '鋁合金精練廠', cat: 'heavy', tier: 2, cost: 22000, income: 680, in: '鋁土礦', out: '航空鋁材' },
+      { id: 'h10', name: '稀土元素提純廠', cat: 'heavy', tier: 2, cost: 32000, income: 1000, in: '稀土原礦', out: '高純稀土' },
+      { id: 'h11', name: '建築鋼骨製造廠', cat: 'heavy', tier: 3, cost: 70000, income: 2400, in: '鋼材', out: '現金' },
+      { id: 'h12', name: '大型工業機具廠', cat: 'heavy', tier: 3, cost: 120000, income: 4200, in: '鋼材,銅線', out: '現金' },
+      { id: 'h13', name: '自動化機械臂廠', cat: 'heavy', tier: 3, cost: 140000, income: 5000, in: '合金,晶片', out: '現金' },
+      { id: 'h14', name: '重型工程車輛廠', cat: 'heavy', tier: 3, cost: 110000, income: 3900, in: '鋼材,引擎', out: '現金' },
+      { id: 'h15', name: '礦山巨型掘進機廠', cat: 'heavy', tier: 3, cost: 180000, income: 6500, in: '特種鋼', out: '現金' },
+
+      // --- 4. 輕工與紡織 ---
+      { id: 'l1', name: '天然棉花田', cat: 'light', tier: 1, cost: 1200, income: 25, in: '無', out: '原棉' },
+      { id: 'l2', name: '天然橡膠園', cat: 'light', tier: 1, cost: 1800, income: 40, in: '無', out: '生橡膠' },
+      { id: 'l3', name: '養蠶絲綢農場', cat: 'light', tier: 1, cost: 2200, income: 55, in: '無', out: '生絲' },
+      { id: 'l4', name: '皮革原料牧場', cat: 'light', tier: 1, cost: 2000, income: 48, in: '無', out: '原皮' },
+      { id: 'l5', name: '商業林場木材庫', cat: 'light', tier: 1, cost: 1500, income: 32, in: '無', out: '原木' },
+      { id: 'l6', name: '大型紡織廠', cat: 'light', tier: 2, cost: 8000, income: 210, in: '原棉', out: '高品質布料' },
+      { id: 'l7', name: '合成橡膠加工廠', cat: 'light', tier: 2, cost: 10000, income: 270, in: '生橡膠', out: '工業橡膠' },
+      { id: 'l8', name: '印染與化纖廠', cat: 'light', tier: 2, cost: 11000, income: 310, in: '化學劑', out: '染色布匹' },
+      { id: 'l9', name: '紙漿與造紙廠', cat: 'light', tier: 2, cost: 9000, income: 240, in: '原木', out: '高級紙張' },
+      { id: 'l10', name: '皮革熟化加工廠', cat: 'light', tier: 2, cost: 12000, income: 340, in: '原皮', out: '精製皮革' },
+      { id: 'l11', name: '時尚服飾國際品牌', cat: 'light', tier: 3, cost: 50000, income: 1600, in: '布料,皮革', out: '現金' },
+      { id: 'l12', name: '專業運動鞋工廠', cat: 'light', tier: 3, cost: 45000, income: 1400, in: '橡膠,布料', out: '現金' },
+      { id: 'l13', name: '奢華木製家具門市', cat: 'light', tier: 3, cost: 60000, income: 1950, in: '原木,皮革', out: '現金' },
+      { id: 'l14', name: '包裝紙箱印刷集團', cat: 'light', tier: 3, cost: 38000, income: 1150, in: '紙張', out: '現金' },
+      { id: 'l15', name: '高級絲綢精品店', cat: 'light', tier: 3, cost: 55000, income: 1800, in: '生絲', out: '現金' },
+
+      // --- 5. 高科技電子 ---
+      { id: 't1', name: '高純度石英砂礦', cat: 'tech', tier: 1, cost: 3500, income: 90, in: '無', out: '高純石英' },
+      { id: 't2', name: '晶圓切割廠', cat: 'tech', tier: 1, cost: 5000, income: 140, in: '無', out: '基礎晶圓' },
+      { id: 't3', name: '導電銅箔廠', cat: 'tech', tier: 1, cost: 4000, income: 110, in: '無', out: '銅箔' },
+      { id: 't4', name: '貴金屬提煉廠', cat: 'tech', tier: 1, cost: 6000, income: 180, in: '無', out: '工業黃金' },
+      { id: 't5', name: '高科技螢幕基板廠', cat: 'tech', tier: 1, cost: 4500, income: 125, in: '無', out: '玻璃基板' },
+      { id: 't6', name: 'IC 晶片製造廠', cat: 'tech', tier: 2, cost: 40000, income: 1300, in: '晶圓,高純稀土', out: '先進晶片' },
+      { id: 't7', name: 'OLED 顯示螢幕廠', cat: 'tech', tier: 2, cost: 28000, income: 850, in: '玻璃基板', out: '顯示螢幕' },
+      { id: 't8', name: 'PCB 多層電路板廠', cat: 'tech', tier: 2, cost: 22000, income: 650, in: '銅箔', out: '電路板' },
+      { id: 't9', name: '精密感測器封裝廠', cat: 'tech', tier: 2, cost: 25000, income: 750, in: '晶片', out: '感測器' },
+      { id: 't10', name: '高速記憶體顆粒廠', cat: 'tech', tier: 2, cost: 35000, income: 1100, in: '晶圓', out: '記憶體' },
+      { id: 't11', name: '智慧型手機超級工廠', cat: 'tech', tier: 3, cost: 120000, income: 4300, in: '晶片,螢幕', out: '現金' },
+      { id: 't12', name: '個人電腦與筆電廠', cat: 'tech', tier: 3, cost: 100000, income: 3500, in: '晶片,電路板', out: '現金' },
+      { id: 't13', name: 'AI 算力伺服器中心', cat: 'tech', tier: 3, cost: 250000, income: 9800, in: '高階晶片', out: '現金' },
+      { id: 't14', name: '超級電腦研發基地', cat: 'tech', tier: 3, cost: 300000, income: 12000, in: '高階晶片', out: '現金' },
+      { id: 't15', name: '智慧穿戴裝置旗艦店', cat: 'tech', tier: 3, cost: 85000, income: 2900, in: '感測器,晶片', out: '現金' },
+
+      // --- 6. 汽車與運輸 ---
+      { id: 'c1', name: '高張力車用鋼材廠', cat: 'auto', tier: 1, cost: 3000, income: 75, in: '無', out: '車用鋼板' },
+      { id: 'c2', name: '車用橡膠煉製場', cat: 'auto', tier: 1, cost: 2500, income: 60, in: '無', out: '車用橡膠' },
+      { id: 'c3', name: '安全強化玻璃廠', cat: 'auto', tier: 1, cost: 2200, income: 50, in: '無', out: '車用玻璃' },
+      { id: 'c4', name: '鋰電池模組研發廠', cat: 'auto', tier: 1, cost: 4000, income: 110, in: '無', out: '電池模組' },
+      { id: 'c5', name: '車用輕量化鋁材廠', cat: 'auto', tier: 1, cost: 3500, income: 90, in: '無', out: '車用鋁材' },
+      { id: 'c6', name: 'V8 內燃機引擎廠', cat: 'auto', tier: 2, cost: 25000, income: 780, in: '鋼板,鋁材', out: '燃油引擎' },
+      { id: 'c7', name: '汽車車架與底盤廠', cat: 'auto', tier: 2, cost: 20000, income: 600, in: '鋼板', out: '汽車底盤' },
+      { id: 'c8', name: '高功率電動馬達廠', cat: 'auto', tier: 2, cost: 28000, income: 880, in: '銅線,稀土', out: '電動馬達' },
+      { id: 'c9', name: '車用 ECU 控制模組廠', cat: 'auto', tier: 2, cost: 30000, income: 950, in: '晶片,電路板', out: '車用晶片' },
+      { id: 'c10', name: '雙離合變速箱製造廠', cat: 'auto', tier: 2, cost: 22000, income: 670, in: '鋼材', out: '變速箱' },
+      { id: 'c11', name: '豪華燃油跑車製造廠', cat: 'auto', tier: 3, cost: 150000, income: 5200, in: '引擎,底盤', out: '現金' },
+      { id: 'c12', name: '新能源電動車超級工廠', cat: 'auto', tier: 3, cost: 200000, income: 7500, in: '馬達,電池模組', out: '現金' },
+      { id: 'c13', name: '商業重型卡車組裝廠', cat: 'auto', tier: 3, cost: 130000, income: 4500, in: '柴油引擎,底盤', out: '現金' },
+      { id: 'c14', name: '全國連鎖 4S 車輛門市', cat: 'auto', tier: 3, cost: 80000, income: 2700, in: '成車', out: '現金' },
+      { id: 'c15', name: '自動駕駛計程車車隊', cat: 'auto', tier: 3, cost: 180000, income: 6400, in: '電動車,自駕晶片', out: '現金' },
+
+      // --- 7. 航太與國防 ---
+      { id: 'r1', name: '鈦合金提煉熔爐', cat: 'aero', tier: 1, cost: 5000, income: 140, in: '無', out: '鈦合金塊' },
+      { id: 'r2', name: '碳纖維複合材料廠', cat: 'aero', tier: 1, cost: 6000, income: 170, in: '無', out: '碳纖維板' },
+      { id: 'r3', name: '軍規耐高溫晶片廠', cat: 'aero', tier: 1, cost: 8000, income: 240, in: '無', out: '軍規晶片' },
+      { id: 'r4', name: '特種航太橡膠封條廠', cat: 'aero', tier: 1, cost: 4000, income: 100, in: '無', out: '航太密封件' },
+      { id: 'r5', name: '高比能火箭燃料廠', cat: 'aero', tier: 1, cost: 7000, income: 200, in: '無', out: '火箭燃料' },
+      { id: 'r6', name: '火箭推進器製造廠', cat: 'aero', tier: 2, cost: 45000, income: 1500, in: '鈦合金,燃料', out: '推進器' },
+      { id: 'r7', name: '航電系統整合總廠', cat: 'aero', tier: 2, cost: 50000, income: 1700, in: '軍規晶片', out: '航電系統' },
+      { id: 'r8', name: '相控陣雷達感測器廠', cat: 'aero', tier: 2, cost: 42000, income: 1400, in: '晶片,稀土', out: '雷達系統' },
+      { id: 'r9', name: '噴射渦輪引擎工廠', cat: 'aero', tier: 2, cost: 55000, income: 1900, in: '鈦合金,碳纖維', out: '噴射引擎' },
+      { id: 'r10', name: '高精度雷射陀螺儀廠', cat: 'aero', tier: 2, cost: 38000, income: 1250, in: '光學元件', out: '陀螺儀' },
+      { id: 't11_aero', name: '商業雙通道客機廠', cat: 'aero', tier: 3, cost: 300000, income: 11000, in: '噴射引擎,航電', out: '現金' },
+      { id: 't12_aero', name: '低軌通訊衛星超級工廠', cat: 'aero', tier: 3, cost: 220000, income: 8200, in: '雷達,太陽能板', out: '現金' },
+      { id: 't13_aero', name: '商業運載火箭發射場', cat: 'aero', tier: 3, cost: 400000, income: 15000, in: '推進器,航電', out: '現金' },
+      { id: 't14_aero', name: '全地形國防裝甲車廠', cat: 'aero', tier: 3, cost: 180000, income: 6200, in: '鈦合金,引擎', out: '現金' },
+      { id: 't15_aero', name: '軍用無人機蜂群總廠', cat: 'aero', tier: 3, cost: 250000, income: 9500, in: '碳纖維,軍規晶片', out: '現金' },
+
+      // --- 8. 生技與醫療 ---
+      { id: 'b1', name: '藥用植物種植園', cat: 'bio', tier: 1, cost: 1500, income: 35, in: '無', out: '草藥原萃' },
+      { id: 'b2', name: '化學試劑基底廠', cat: 'bio', tier: 1, cost: 2000, income: 50, in: '無', out: '基礎試劑' },
+      { id: 'b3', name: '高純度葡萄糖廠', cat: 'bio', tier: 1, cost: 1800, income: 42, in: '無', out: '醫用葡萄糖' },
+      { id: 'b4', name: '醫用高分子材料廠', cat: 'bio', tier: 1, cost: 2800, income: 70, in: '無', out: '高分子塑膠' },
+      { id: 'b5', name: '基因定序試劑採集站', cat: 'bio', tier: 1, cost: 3500, income: 95, in: '無', out: '酶試劑' },
+      { id: 'b6', name: '醫用酒精精煉廠', cat: 'bio', tier: 2, cost: 8000, income: 210, in: '基礎試劑', out: '醫用酒精' },
+      { id: 'b7', name: '微生物培養基實驗室', cat: 'bio', tier: 2, cost: 12000, income: 330, in: '葡萄糖', out: '高級培養基' },
+      { id: 'b8', name: '合成藥物化學總廠', cat: 'bio', tier: 2, cost: 20000, income: 600, in: '草藥原萃,試劑', out: '藥物原料' },
+      { id: 'b9', name: 'mRNA 疫苗原料研發中心', cat: 'bio', tier: 2, cost: 35000, income: 1100, in: '酶試劑', out: '疫苗原液' },
+      { id: 'b10', name: '精密醫療耗材廠', cat: 'bio', tier: 2, cost: 15000, income: 420, in: '高分子塑膠', out: '醫療耗材' },
+      { id: 'b11', name: '特效處方止痛藥廠', cat: 'bio', tier: 3, cost: 65000, income: 2100, in: '藥物原料', out: '現金' },
+      { id: 'b12', name: '全球 mRNA 疫苗專利廠', cat: 'bio', tier: 3, cost: 160000, income: 5800, in: '疫苗原液', out: '現金' },
+      { id: 'b13', name: '高階核磁共振醫療器材廠', cat: 'bio', tier: 3, cost: 180000, income: 6600, in: '高階晶片,耗材', out: '現金' },
+      { id: 'b14', name: '連鎖私立醫療綜合中心', cat: 'bio', tier: 3, cost: 120000, income: 4200, in: '醫療器材,藥品', out: '現金' },
+      { id: 'b15', name: '基因治療與克隆醫療所', cat: 'bio', tier: 3, cost: 250000, income: 9800, in: '基因原液', out: '現金' },
+
+      // --- 9. 房地產與營建 ---
+      { id: 'm1', name: '河沙採砂場', cat: 'realty', tier: 1, cost: 1000, income: 20, in: '無', out: '建築砂石' },
+      { id: 'm2', name: '水泥石灰石礦場', cat: 'realty', tier: 1, cost: 1500, income: 35, in: '無', out: '石灰石' },
+      { id: 'm3', name: '建築黏土採掘場', cat: 'realty', tier: 1, cost: 1200, income: 28, in: '無', out: '黏土' },
+      { id: 'm4', name: '瀝青原油加工站', cat: 'realty', tier: 1, cost: 2000, income: 50, in: '無', out: '道路瀝青' },
+      { id: 'm5', name: '建築玻璃原砂場', cat: 'realty', tier: 1, cost: 1800, income: 40, in: '無', out: '玻璃砂' },
+      { id: 'm6', name: '紅磚與空心磚廠', cat: 'realty', tier: 2, cost: 6000, income: 150, in: '黏土', out: '建築磚塊' },
+      { id: 'm7', name: '大型預拌混凝土廠', cat: 'realty', tier: 2, cost: 10000, income: 270, in: '砂石,石灰石', out: '商品混凝土' },
+      { id: 'm8', name: '建築鋼筋加工廠', cat: 'realty', tier: 2, cost: 12000, income: 330, in: '鋼材', out: '結構鋼筋' },
+      { id: 'm9', name: '雙層隔音玻璃廠', cat: 'realty', tier: 2, cost: 9000, income: 230, in: '玻璃砂', out: '建材玻璃' },
+      { id: 'm10', name: '防水與隔熱塗料廠', cat: 'realty', tier: 2, cost: 11000, income: 300, in: '瀝青', out: '防水塗料' },
+      { id: 'm11', name: '高層住宅大樓建案', cat: 'realty', tier: 3, cost: 80000, income: 2800, in: '混凝土,鋼筋', out: '現金' },
+      { id: 'm12', name: 'CBD 甲級商業辦公大樓', cat: 'realty', tier: 3, cost: 150000, income: 5500, in: '鋼構,玻璃', out: '現金' },
+      { id: 'm13', name: '五星級奢華飯店', cat: 'realty', tier: 3, cost: 200000, income: 7600, in: '建材,家具', out: '現金' },
+      { id: 'm14', name: '大型連鎖購物中心', cat: 'realty', tier: 3, cost: 180000, income: 6800, in: '建材', out: '現金' },
+      { id: 'm15', name: '國際會展中心大樓', cat: 'realty', tier: 3, cost: 220000, income: 8500, in: '鋼構', out: '現金' }
+    ];
+
+    let currentCategory = 'all';
+    let currentTier = 'all';
+
+    // 初始化頁面
+    function init() {
+      renderCategoryTabs();
+      renderIndustries();
+      startGameLoop();
+    }
+
+    // 渲染 9 大頁籤
+    function renderCategoryTabs() {
+      const container = document.getElementById('category-tabs');
+      container.innerHTML = CATEGORIES.map(cat => `
+        <button class="tab-btn ${cat.id === currentCategory ? 'active' : ''}" onclick="switchCategory('${cat.id}')">
+          ${cat.name}
+        </button>
+      `).join('');
+    }
+
+    // 渲染產業卡片
+    function renderIndustries() {
+      const grid = document.getElementById('industry-grid');
+      
+      const filtered = GAME_INDUSTRIES.filter(ind => {
+        const catMatch = currentCategory === 'all' || ind.cat === currentCategory;
+        const tierMatch = currentTier === 'all' || ind.tier.toString() === currentTier;
+        return catMatch && tierMatch;
+      });
+
+      grid.innerHTML = filtered.map(ind => {
+        const count = player.owned[ind.id] || 0;
+        const tierClass = `tier-${ind.tier}`;
+        const tierName = ind.tier === 1 ? 'T1 基礎原物料' : ind.tier === 2 ? 'T2 中游加工' : 'T3 終端/零售';
+
+        return `
+          <div class="card">
+            <div>
+              <div class="card-header">
+                <div class="card-title">${ind.name}</div>
+                <span class="tier-tag ${tierClass}">${tierName}</span>
+              </div>
+              <div class="card-info">
+                💰 建造成本: $${ind.cost.toLocaleString()}<br>
+                📈 基礎收益: +$${ind.income}/秒<br>
+                📥 消耗原料: ${ind.in}<br>
+                📤 產出產品: ${ind.out}<br>
+                🏭 已擁有: <strong>${count}</strong> 座
+              </div>
             </div>
-            <div class="progress-bg">
-                <div id="global-progress-bar" class="progress-fill"></div>
-            </div>
-        </div>
-        
-        <!-- 頁籤導航欄 -->
-        <div class="tab-nav">
-            <button class="tab-btn active" onclick="switchTab(event, 'tab-overview')"><i class="fa-solid fa-building"></i> 企業總覽</button>
-            <button class="tab-btn" onclick="switchTab(event, 'tab-items')"><i class="fa-solid fa-box-archive"></i> 道具背包</button>
-            <button class="tab-btn" onclick="switchTab(event, 'tab-production')"><i class="fa-solid fa-industry"></i> 產業生產</button>
-            <button class="tab-btn" onclick="switchTab(event, 'tab-market')"><i class="fa-solid fa-landmark-flag"></i> 全球交易所</button>
-            <button class="tab-btn" onclick="switchTab(event, 'tab-wiki')"><i class="fa-solid fa-book-open"></i> 商業百科</button>
-            <button class="tab-btn btn-danger" id="admin-tab-btn" style="display:none;" onclick="switchTab(event, 'tab-admin')"><i class="fa-solid fa-user-shield"></i> 管理員後台</button>
-        </div>
+            <button class="buy-btn" onclick="buyIndustry('${ind.id}')" ${player.money < ind.cost ? 'disabled' : ''}>
+              建造 (+1)
+            </button>
+          </div>
+        `;
+      }).join('');
+    }
 
-        <!-- 1. 企業總覽頁籤 -->
-        <div id="tab-overview" class="tab-content active">
-            <div class="card" style="background: #252525;">
-                <div class="flex-between">
-                    <div>
-                        <i class="fa-solid fa-building"></i> <b id="display-name" style="color:#007bff; font-size:1.1em;">-</b>
-                        <span id="admin-tag" class="admin-badge" style="display:none;">最高管理員</span>
-                    </div>
-                    <button class="btn btn-danger" style="font-size:0.7em; padding: 2px 6px;" onclick="logout()"><i class="fa-solid fa-right-from-bracket"></i> 安全登出</button>
-                </div>
-                <hr style="border:0.5px solid #444; margin: 8px 0;">
-                <h4 style="margin:5px 0;"><i class="fa-solid fa-sack-dollar"></i> 財務與資產統計：</h4>
-                <div class="grid-2">
-                    <div><i class="fa-solid fa-money-bill-wave" style="color:#28a745;"></i> 現金: <b id="cash" style="color: #28a745;">$0</b></div>
-                    <div><i class="fa-solid fa-cubes"></i> 基礎原物料總數: <b id="inv-t1-sum">0</b></div>
-                    <div><i class="fa-solid fa-boxes-stacked"></i> 中游加工品總數: <b id="inv-t2-sum">0</b></div>
-                    <div><i class="fa-solid fa-box-open"></i> 高階終端品總數: <b id="inv-t3-sum">0</b></div>
-                </div>
-            </div>
+    // 切換類別
+    function switchCategory(catId) {
+      currentCategory = catId;
+      renderCategoryTabs();
+      renderIndustries();
+    }
 
-            <!-- 兌換碼兌換區塊 -->
-            <div class="card" style="border: 1px solid var(--purple);">
-                <h4 style="margin:0 0 5px 0; color:var(--purple);"><i class="fa-solid fa-ticket"></i> 企業兌換碼禮包兌換</h4>
-                <div style="display:flex; gap:5px;">
-                    <input type="text" id="redeem-code-input" placeholder="輸入兌換碼 (如: zxcvb123)" style="margin:0;">
-                    <button class="btn btn-purple" style="white-space:nowrap;" onclick="redeemCode()"><i class="fa-solid fa-gift"></i> 領取兌換</button>
-                </div>
-            </div>
+    // 綁定階級篩選按鈕
+    document.getElementById('tier-filters').addEventListener('click', (e) => {
+      if (e.target.classList.contains('filter-btn')) {
+        document.querySelectorAll('.filter-btn').forEach(btn => btn.classList.remove('active'));
+        e.target.classList.add('active');
+        currentTier = e.target.dataset.tier;
+        renderIndustries();
+      }
+    });
 
-            <!-- 可打叉關閉的通知訊息卡片 -->
-            <div id="msg-card" class="card" style="display:none; border:1px solid var(--warning); background:#222; position:relative;">
-                <button onclick="closeNoticeCard()" class="close-notice-btn" title="關閉通知">✕</button>
-                <h4 style="color:var(--warning); margin:0 0 5px 0;"><i class="fa-solid fa-envelope"></i> 管理員訊息/系統通知</h4>
-                <div id="msg-content" style="font-size:0.9em; color:#ddd; padding-right:20px;">無訊息</div>
-            </div>
+    // 購買產業
+    function buyIndustry(id) {
+      const ind = GAME_INDUSTRIES.find(item => item.id === id);
+      if (ind && player.money >= ind.cost) {
+        player.money -= ind.cost;
+        player.owned[id] = (player.owned[id] || 0) + 1;
+        updateUI();
+      }
+    }
 
-            <div class="card">
-                <h4><i class="fa-solid fa-warehouse"></i> 詳細物料倉庫庫存</h4>
-                <div id="inventory-detail-list" class="grid-2" style="font-size: 0.85em;"></div>
-            </div>
-        </div>
+    // 更新 UI 數據
+    function updateUI() {
+      document.getElementById('money-display').innerText = Math.floor(player.money).toLocaleString();
+      
+      const totalOwned = Object.values(player.owned).reduce((a, b) => a + b, 0);
+      document.getElementById('owned-count').innerText = totalOwned;
 
-        <!-- 2. 道具背包頁籤 -->
-        <div id="tab-items" class="tab-content">
-            <div class="card">
-                <h3><i class="fa-solid fa-box-archive"></i> 企業道具庫</h3>
-                <p style="color:#aaa; font-size:0.85em; margin-top:-5px;">使用機率模組卡，可在生產時觸發雙倍爆擊、免材料或幸運贈送！</p>
-                <div id="items-list" class="grid-2"></div>
-            </div>
-        </div>
+      renderIndustries();
+    }
 
-        <!-- 3. 產業生產頁籤 -->
-        <div id="tab-production" class="tab-content">
-            <div class="card">
-                <h3><i class="fa-solid fa-industry"></i> 產業生產中心與科技解鎖樹</h3>
-                <p style="color:#aaa; font-size:0.85em; margin-top:-5px;">點擊項目後將開啟【自動循環生產】（支援離線最高 10 小時產出）。</p>
-                <div id="industry-production-list"></div>
-            </div>
-        </div>
+    // 每秒收益循環
+    function startGameLoop() {
+      setInterval(() => {
+        let secondIncome = 0;
+        GAME_INDUSTRIES.forEach(ind => {
+          const count = player.owned[ind.id] || 0;
+          secondIncome += count * ind.income;
+        });
 
-        <!-- 4. 全球交易所與政府採購頁籤 -->
-        <div id="tab-market" class="tab-content">
-            <div class="card">
-                <h3><i class="fa-solid fa-store"></i> 全球玩家即時交易所</h3>
-                <p style="margin:2px 0; font-size:0.85em; color:#aaa;">選擇物料發布賣單（數量限定正整數）：</p>
-                <div class="grid-2">
-                    <select id="sell-item" onchange="updateMarketPriceDisplay()"></select>
-                    <input type="number" id="sell-qty" min="1" step="1" placeholder="數量 (不可有小數)">
-                </div>
-                <div style="font-size:0.85em; color:#ffc107; margin-bottom:4px;">
-                    <i class="fa-solid fa-chart-line"></i> 即時動態市價：$<span id="selected-market-price">0</span> (法定底價: $<span id="selected-min-price">0</span>)
-                </div>
-                <input type="number" id="sell-price" placeholder="設定出售單價 ($)">
-                <button class="btn btn-warning" style="width:100%; margin-top:5px;" onclick="postGlobalOrder()"><i class="fa-solid fa-bullhorn"></i> 上架交易所</button>
+        player.money += secondIncome;
+        document.getElementById('money-display').innerText = Math.floor(player.money).toLocaleString();
+      }, 1000);
+    }
 
-                <h4 style="margin-bottom: 5px; margin-top:15px;"><i class="fa-solid fa-list-check"></i> 全服線上掛單列表</h4>
-                <div class="table-responsive">
-                    <table>
-                        <thead>
-                            <tr><th>賣家企業</th><th>物料</th><th>數量</th><th>單價</th><th>操作</th></tr>
-                        </thead>
-                        <tbody id="global-market-list">
-                            <tr><td colspan="5">連線資料庫中...</td></tr>
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-
-            <!-- 政府物料採購處 -->
-            <div class="card" style="border: 1px solid var(--warning);">
-                <h3><i class="fa-solid fa-building-columns"></i> 政府物料採購處 (快速變現)</h3>
-                <p style="font-size:0.85em; color:#aaa;">選擇物料賣給政府（整數數量）：</p>
-                <div class="grid-2">
-                    <select id="npc-sell-item" onchange="updateNpcEstimate()"></select>
-                    <input type="number" id="npc-sell-qty" min="1" step="1" value="1" placeholder="出售數量" oninput="updateNpcEstimate()">
-                </div>
-                <div style="font-size:0.9em; margin: 6px 0;">預計獲得政府補貼：<b id="npc-est-payout" style="color:#28a745;">$0</b></div>
-                <button class="btn btn-success" style="width:100%; font-size:1em;" onclick="confirmNpcSell()"><i class="fa-solid fa-circle-check"></i> 確定出售給政府</button>
-            </div>
-        </div>
-
-        <!-- 5. 商業百科頁籤 -->
-        <div id="tab-wiki" class="tab-content">
-            <div class="card">
-                <h3><i class="fa-solid fa-sitemap"></i> 產業鏈與科技解鎖總覽</h3>
-                <div class="table-responsive">
-                    <table>
-                        <thead>
-                            <tr>
-                                <th>產業類別</th>
-                                <th>基礎原物料 (T1)</th>
-                                <th>中游加工品 (T2)</th>
-                                <th>高階終端產品 (T3)</th>
-                                <th><i class="fa-solid fa-lock"></i> 終極解鎖科技</th>
-                                <th>研發資金</th>
-                                <th>前置解鎖條件</th>
-                            </tr>
-                        </thead>
-                        <tbody id="industry-tree-table-body"></tbody>
-                    </table>
-                </div>
-            </div>
-        </div>
-
-        <!-- 6. 管理員專屬後台頁籤 -->
-        <div id="tab-admin" class="tab-content">
-            <div class="card" style="border:1px solid var(--danger);">
-                <div class="flex-between">
-                    <h3 style="color:var(--danger); margin:0;"><i class="fa-solid fa-user-shield"></i> 最高管理員控制台</h3>
-                    <button class="btn btn-purple" style="font-size:0.8em;" onclick="refreshAdminData()"><i class="fa-solid fa-rotate"></i> 重新整理後台資料</button>
-                </div>
-                <hr style="border:0.5px solid #444; margin:10px 0;">
-                
-                <!-- 新增/管理兌換碼區塊 -->
-                <div style="background:#282828; padding:10px; border-radius:6px; border:1px dashed var(--purple); margin-bottom:15px;">
-                    <h4 style="margin:0 0 8px 0; color:var(--purple);"><i class="fa-solid fa-ticket"></i> 新增 / 管理兌換碼 (禮包碼)</h4>
-                    <input type="text" id="new-code-name" placeholder="兌換碼名稱 (例: VIP888)">
-                    <div class="grid-2">
-                        <select id="new-code-type">
-                            <option value="CASH">💵 現金 (USD)</option>
-                            <option value="ADMIN">🛡️ 管理員權限 (ADMIN)</option>
-                        </select>
-                        <input type="number" id="new-code-val" min="1" step="1" value="100000" placeholder="給予金額/數量">
-                    </div>
-                    <div style="margin-top:4px;">
-                        <input type="number" id="new-code-limit" min="1" step="1" value="10" placeholder="可領取總人數上限">
-                    </div>
-                    <button class="btn btn-purple" style="width:100%; margin-top:6px;" onclick="adminCreateCode()"><i class="fa-solid fa-plus"></i> 發布兌換碼</button>
-
-                    <h5 style="margin:10px 0 5px 0;">已發布的兌換碼清單：</h5>
-                    <div class="table-responsive">
-                        <table>
-                            <thead>
-                                <tr><th>代碼</th><th>獎勵內容</th><th>剩餘/上限</th><th>操作</th></tr>
-                            </thead>
-                            <tbody id="admin-codes-list">
-                                <tr><td colspan="4">載入中...</td></tr>
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-
-                <h4><i class="fa-solid fa-users-gear"></i> 玩家管理系統</h4>
-                <div class="table-responsive">
-                    <table>
-                        <thead>
-                            <tr><th>玩家 UID</th><th>企業名稱</th><th>狀態</th><th>現金</th><th>操作選項</th></tr>
-                        </thead>
-                        <tbody id="admin-user-list">
-                            <tr><td colspan="5">載入玩家清單中...</td></tr>
-                        </tbody>
-                    </table>
-                </div>
-
-                <hr style="border:0.5px solid #444; margin:15px 0;">
-                <h4><i class="fa-solid fa-gift"></i> 給予物料 / 道具 / 資金權限</h4>
-                <select id="admin-target-user"></select>
-                <div class="grid-2">
-                    <select id="admin-give-item">
-                        <option value="CASH">💵 現金 (USD)</option>
-                    </select>
-                    <input type="number" id="admin-give-qty" min="1" step="1" placeholder="數量 (整數)">
-                </div>
-                <button class="btn btn-success" style="width:100%; margin-top:5px;" onclick="adminGiveItem()"><i class="fa-solid fa-plus"></i> 發放資源給指定玩家</button>
-
-                <hr style="border:0.5px solid #444; margin:15px 0;">
-                <h4><i class="fa-solid fa-paper-plane"></i> 向玩家發送私訊通知</h4>
-                <input type="text" id="admin-msg-text" placeholder="輸入私訊通知內容...">
-                <button class="btn btn-purple" style="width:100%; margin-top:5px;" onclick="adminSendMessage()"><i class="fa-solid fa-comment-dots"></i> 發送訊息</button>
-            </div>
-        </div>
-
-    </div>
-
-    <!-- 遊戲主邏輯 -->
-    <script src="app.js"></script>
+    window.onload = init;
+  </script>
 </body>
 </html>
