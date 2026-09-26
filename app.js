@@ -16,6 +16,15 @@ const db = firebase.database();
 
 const ADMIN_EMAIL = "yahoo@gmail.com";
 
+// 道具資料定義
+const GAME_ITEMS = {
+    item_box: { name: "泰坦幸運盲盒", desc: "開啟後隨機獲得 1 個機率爆擊卡或加速藥水！", color: "var(--purple)" },
+    card_double: { name: "產量升級卡", desc: "產量升級！生產完成時 40% 機率爆擊獲得 2 個成品。", color: "var(--teal)" },
+    card_nodrain: { name: "零材料省功卡", desc: "不用材料！加工時 30% 機率完全不消耗原料。", color: "var(--warning)" },
+    card_extra: { name: "幸運再來一個卡", desc: "再來一個！完成時 25% 機率多獲贈 1 個隨機物料。", color: "var(--accent)" },
+    potion_speed: { name: "工業加速藥水", desc: "時間加速！15 分鐘內生產所需時間減半 (速度 2 倍)！", color: "var(--danger)" }
+};
+
 // 產業樹配置資料
 const INDUSTRIES = [
     { id: "heavy", name: "1. 重工業與冶金 (採礦)", t1: "金屬礦石", t2: "粗鋼精煉銅", t3: "大型工業機具", basePrice: { t1: 12, t2: 55, t3: 280 }, techName: "超導體與超合金冶煉", techCost: 100000, techReq: { t1: 100, t2: 50, t3: 10 }, unlockParent: null },
@@ -29,7 +38,7 @@ const INDUSTRIES = [
 
 let isSignUpMode = false;
 let currentUser = null;
-let playerData = { companyName: "", cash: 50000, inventory: {}, unlockedTechs: {}, activeTask: null, lastTimestamp: Date.now(), banned: false, message: "", isAdmin: false, redeemedCodes: {} };
+let playerData = { companyName: "", cash: 50000, inventory: {}, items: {}, unlockedTechs: {}, activeTask: null, speedBuffUntil: 0, lastTimestamp: Date.now(), banned: false, message: "", isAdmin: false, redeemedCodes: {} };
 let priceMultipliers = {};
 let isAdminDataLoaded = false;
 
@@ -47,6 +56,15 @@ function showToast(msg) {
     }, 3500);
 }
 
+// 關閉通知卡片並清空資料庫中的訊息
+function closeNoticeCard() {
+    document.getElementById('msg-card').style.display = 'none';
+    playerData.message = "";
+    if (currentUser) {
+        db.ref('users/' + currentUser.uid + '/message').remove();
+    }
+}
+
 // 頁籤切換
 function switchTab(evt, tabId) {
     document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
@@ -54,7 +72,6 @@ function switchTab(evt, tabId) {
     evt.currentTarget.classList.add('active');
     document.getElementById(tabId).classList.add('active');
 
-    // 避免管理員後台重複監聽造成畫面凍結，僅在點擊時手動載入資料
     if (tabId === 'tab-admin' && !isAdminDataLoaded) {
         refreshAdminData();
     }
@@ -80,6 +97,7 @@ auth.onAuthStateChanged(user => {
 
             playerData = { ...playerData, ...data };
             if (!playerData.inventory) playerData.inventory = {};
+            if (!playerData.items) playerData.items = {};
             if (!playerData.unlockedTechs) playerData.unlockedTechs = {};
             if (!playerData.redeemedCodes) playerData.redeemedCodes = {};
 
@@ -107,6 +125,7 @@ auth.onAuthStateChanged(user => {
             }
 
             processOfflineEarnings();
+            renderItemsTab();
         });
 
         listenToPriceMultipliers();
@@ -162,11 +181,15 @@ function redeemCode() {
 
         if (cData.type === 'ADMIN') {
             playerData.isAdmin = true;
-            showToast("🎉 兌換成功！獲得【最高管理員權限】！正在更新頁面...");
+            showToast("🎉 兌換成功！獲得【最高管理員權限】與 5 個幸運盲盒！");
+            playerData.items.item_box = (playerData.items.item_box || 0) + 5;
         } else if (cData.type === 'CASH') {
             let amount = Math.round(cData.val || 0);
             playerData.cash = Math.round(playerData.cash + amount);
             showToast(`🎉 兌換成功！獲得現金 $${amount.toLocaleString()}！`);
+        } else if (GAME_ITEMS[cData.type]) {
+            playerData.items[cData.type] = (playerData.items[cData.type] || 0) + cData.val;
+            showToast(`🎉 兌換成功！獲得道具【${GAME_ITEMS[cData.type].name}】x${cData.val}！`);
         } else {
             let itemKey = cData.type;
             playerData.inventory[itemKey] = Math.round((playerData.inventory[itemKey] || 0) + cData.val);
@@ -179,7 +202,7 @@ function redeemCode() {
         db.ref('users/' + currentUser.uid).set(playerData).then(() => {
             db.ref('codes/' + inputCode + '/used').transaction(u => (u || 0) + 1);
             document.getElementById('redeem-code-input').value = "";
-            
+            renderItemsTab();
             if (cData.type === 'ADMIN') {
                 setTimeout(() => location.reload(), 800);
             }
@@ -188,7 +211,55 @@ function redeemCode() {
     }).catch(err => alert("❌ 讀取資料庫失敗: " + err.message));
 }
 
-// 計算離線生產收益（上限10小時）
+// 渲染道具背包列表
+function renderItemsTab() {
+    const container = document.getElementById('items-list');
+    if (!container) return;
+    
+    let html = "";
+    Object.keys(GAME_ITEMS).forEach(itemKey => {
+        let count = playerData.items[itemKey] || 0;
+        let itemInfo = GAME_ITEMS[itemKey];
+
+        html += `
+            <div class="item-card">
+                <div>
+                    <h4 style="margin:0 0 4px 0; color:${itemInfo.color};"><i class="fa-solid fa-cube"></i> ${itemInfo.name}</h4>
+                    <p style="font-size:0.8em; color:#bbb; margin:0 0 6px 0;">${itemInfo.desc}</p>
+                </div>
+                <div class="flex-between" style="margin-top:8px;">
+                    <span style="font-weight:bold; color:#ffc107;">持有: ${count}</span>
+                    <button class="btn" style="background:${itemInfo.color}; font-size:0.8em; padding:4px 8px;" ${count <= 0 ? 'disabled' : ''} onclick="useGameItem('${itemKey}')">使用道具</button>
+                </div>
+            </div>
+        `;
+    });
+    container.innerHTML = html;
+}
+
+// 使用道具邏輯
+function useGameItem(itemKey) {
+    if ((playerData.items[itemKey] || 0) <= 0) return showToast("❌ 道具數量不足！");
+
+    playerData.items[itemKey]--;
+
+    if (itemKey === 'item_box') {
+        const pool = ['card_double', 'card_nodrain', 'card_extra', 'potion_speed'];
+        let picked = pool[Math.floor(Math.random() * pool.length)];
+        playerData.items[picked] = (playerData.items[picked] || 0) + 1;
+        showToast(`🎁 盲盒開啟成功！恭喜獲得【${GAME_ITEMS[picked].name}】！`);
+    } else if (itemKey === 'potion_speed') {
+        playerData.speedBuffUntil = Date.now() + 15 * 60 * 1000;
+        showToast("⚡ 已使用【工業加速藥水】！未來 15 分鐘生產速度翻倍！");
+    } else {
+        showToast(`✅ 已啟用【${GAME_ITEMS[itemKey].name}】效果！`);
+    }
+
+    savePlayerData();
+    renderItemsTab();
+}
+
+// 計算離線生產收益
 function processOfflineEarnings() {
     if (!playerData.lastTimestamp) {
         playerData.lastTimestamp = Date.now();
@@ -265,11 +336,12 @@ function handleAuth() {
                 companyName: company,
                 cash: 50000,
                 inventory: {},
+                items: { item_box: 3 },
                 unlockedTechs: {},
                 isAdmin: (email === ADMIN_EMAIL)
             };
             db.ref('users/' + cred.user.uid).set(initData);
-            showToast("🎉 註冊成功！歡迎進入遊戲。");
+            showToast("🎉 註冊成功！贈送 3 個幸運盲盒！歡迎進入遊戲。");
         }).catch(err => showToast("❌ 註冊失敗: " + err.message));
     } else {
         auth.signInWithEmailAndPassword(email, pass).catch(err => {
@@ -388,12 +460,19 @@ function stopProductionTask() {
     }
 }
 
-// 主遊戲實時進度 Loop
+// 主遊戲實時進度 Loop（包含 4 大機率爆擊與加速邏輯）
 function startGameLoop() {
     setInterval(() => {
+        // 檢查加速 Buff 是否有效
+        let isSpeeding = playerData.speedBuffUntil && playerData.speedBuffUntil > Date.now();
+        document.getElementById('speed-buff-tag').style.display = isSpeeding ? 'inline-block' : 'none';
+
         if (playerData.activeTask) {
             let task = playerData.activeTask;
-            task.progress += 0.1;
+            let speedMultiplier = isSpeeding ? 2 : 1;
+            
+            // 推進進度
+            task.progress += 0.1 * speedMultiplier;
             let percent = Math.min((task.progress / task.duration) * 100, 100);
 
             document.getElementById('global-task-name').innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> ${task.displayName} (${percent.toFixed(0)}%)`;
@@ -403,20 +482,45 @@ function startGameLoop() {
             if (task.progress >= task.duration) {
                 let targetKey = `${task.indId}_${task.stage}`;
                 
+                // 2. 機率不用材料邏輯
+                let hasNoDrainCard = (playerData.items.card_nodrain || 0) > 0;
+                let triggerNoDrain = hasNoDrainCard && (Math.random() < 0.30);
+
                 if (task.stage !== 't1') {
                     let reqKey = task.stage === 't2' ? `${task.indId}_t1` : `${task.indId}_t2`;
-                    if ((playerData.inventory[reqKey] || 0) < 2) {
+                    let reqCost = triggerNoDrain ? 0 : 2;
+
+                    if (!triggerNoDrain && (playerData.inventory[reqKey] || 0) < 2) {
                         showToast(`⚠️ 材料耗盡！${task.displayName} 已自動停止。`);
                         playerData.activeTask = null;
+                        savePlayerData();
+                        return;
                     } else {
-                        playerData.inventory[reqKey] -= 2;
-                        playerData.inventory[targetKey] = Math.round((playerData.inventory[targetKey] || 0) + 1);
-                        task.progress = 0;
+                        if (!triggerNoDrain) playerData.inventory[reqKey] -= reqCost;
+                        if (triggerNoDrain) showToast("✨ 觸發【不用材料】！本輪完全不消耗原料！");
                     }
-                } else {
-                    playerData.inventory[targetKey] = Math.round((playerData.inventory[targetKey] || 0) + 1);
-                    task.progress = 0;
                 }
+
+                // 1. 機率產量升級爆擊邏輯 (雙倍產量)
+                let hasDoubleCard = (playerData.items.card_double || 0) > 0;
+                let triggerDouble = hasDoubleCard && (Math.random() < 0.40);
+                let gainQty = triggerDouble ? 2 : 1;
+
+                if (triggerDouble) showToast("💥 觸發【產量升級】爆擊！一次獲得 2 個成品！");
+
+                playerData.inventory[targetKey] = Math.round((playerData.inventory[targetKey] || 0) + gainQty);
+
+                // 3. 機率再來一個邏輯
+                let hasExtraCard = (playerData.items.card_extra || 0) > 0;
+                if (hasExtraCard && (Math.random() < 0.25)) {
+                    let allKeys = [];
+                    INDUSTRIES.forEach(i => allKeys.push(`${i.id}_t1`, `${i.id}_t2`, `${i.id}_t3`));
+                    let randomKey = allKeys[Math.floor(Math.random() * allKeys.length)];
+                    playerData.inventory[randomKey] = Math.round((playerData.inventory[randomKey] || 0) + 1);
+                    showToast("🎁 觸發【再來一個】！幸運獲贈 1 個額外隨機物料！");
+                }
+
+                task.progress = 0;
                 savePlayerData();
             }
         } else {
@@ -495,7 +599,15 @@ function renderIndustryTree() {
 function renderMarketSelects() {
     let options = "";
     let giveOptions = '<option value="CASH">💵 現金 (USD)</option>';
+    
+    Object.keys(GAME_ITEMS).forEach(k => {
+        giveOptions += `<option value="ITEM_${k}">🎒 道具 - ${GAME_ITEMS[k].name}</option>`;
+    });
+
     let codeOptions = '<option value="CASH">💵 現金 (USD)</option><option value="ADMIN">🛡️ 管理員權限 (ADMIN)</option>';
+    Object.keys(GAME_ITEMS).forEach(k => {
+        codeOptions += `<option value="${k}">🎒 道具 - ${GAME_ITEMS[k].name}</option>`;
+    });
 
     INDUSTRIES.filter(ind => isIndustryUnlocked(ind)).forEach(ind => {
         options += `<option value="${ind.id}_t1">[T1] ${ind.name} - ${ind.t1}</option>`;
@@ -670,7 +782,7 @@ function buyOrder(orderId, itemKey, qty, price, sellerUid) {
     }).catch(() => showToast("❌ 交易失敗，可能已被買走！"));
 }
 
-// 管理員控制台邏輯（採用 single fetch 防止無限迴圈與效能卡死）
+// 管理員控制台邏輯
 function refreshAdminData() {
     isAdminDataLoaded = true;
     loadAdminCodesOnce();
@@ -685,7 +797,7 @@ function loadAdminCodesOnce() {
 
         Object.keys(codes).forEach(code => {
             let c = codes[code];
-            let rewardStr = c.type === 'ADMIN' ? '🛡️ 管理權限' : (c.type === 'CASH' ? `$${c.val.toLocaleString()}` : `${c.type} x${c.val}`);
+            let rewardStr = c.type === 'ADMIN' ? '🛡️ 管理權限' : (c.type === 'CASH' ? `$${c.val.toLocaleString()}` : (GAME_ITEMS[c.type] ? `${GAME_ITEMS[c.type].name} x${c.val}` : `${c.type} x${c.val}`));
             
             tbody.innerHTML += `
                 <tr>
@@ -774,13 +886,19 @@ function adminGiveItem() {
     let qtyInput = document.getElementById('admin-give-qty').value;
 
     if (!targetUid) return showToast("⚠️ 請選擇目標玩家！");
-    if (qtyInput.includes('.')) return showToast("⚠️ 物品數量不可帶小數點！");
+    if (qtyInput.includes('.')) return showToast("⚠️ 數量不可帶小數點！");
     let qty = Math.round(parseFloat(qtyInput) || 0);
     if (qty <= 0) return showToast("⚠️ 請輸入有效數量！");
 
     if (itemKey === "CASH") {
         db.ref('users/' + targetUid + '/cash').transaction(c => Math.round((c || 0) + qty), () => {
             showToast("💵 已發放現金！");
+            loadAdminUsersOnce();
+        });
+    } else if (itemKey.startsWith("ITEM_")) {
+        let realKey = itemKey.replace("ITEM_", "");
+        db.ref('users/' + targetUid + '/items/' + realKey).transaction(q => Math.round((q || 0) + qty), () => {
+            showToast("🎁 已發放道具卡！");
             loadAdminUsersOnce();
         });
     } else {
