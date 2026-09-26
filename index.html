@@ -3,102 +3,270 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>自由大亨：全球市場 v2.4</title>
-    <link rel="stylesheet" href="[https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css](https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css)">
+    <title>自由大亨：全球市場 v.2.4</title>
+    
+    <!-- Firebase SDK (Compat) -->
+    <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-database-compat.js"></script>
+    
+    <!-- Font Awesome 圖示庫 -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <!-- 自訂樣式 -->
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
-    <div id="app">
-        <!-- 頂部資訊欄 -->
-        <header class="top-bar">
-            <div class="logo"><i class="fa-solid fa-chart-line"></i> 自由大亨</div>
-            <div class="user-info">
-                <span id="user-email"><i class="fa-solid fa-user"></i> 未登入</span>
-                <span id="user-cash"><i class="fa-solid fa-coins"></i> $0</span>
-                <button id="auth-btn" onclick="toggleAuthModal()"><i class="fa-solid fa-right-to-bracket"></i> 登入 / 註冊</button>
-            </div>
-        </header>
 
-        <!-- 主要導覽頁籤 -->
-        <nav class="main-nav">
-            <button class="nav-btn active" onclick="switchTab('industry')"><i class="fa-solid fa-industry"></i> 產業帝國</button>
-            <button class="nav-btn" onclick="switchTab('warehouse')"><i class="fa-solid fa-warehouse"></i> 物資倉庫</button>
-            <button class="nav-btn" onclick="switchTab('market')"><i class="fa-solid fa-store"></i> 全球交易所</button>
-            <button class="nav-btn" onclick="switchTab('items')"><i class="fa-solid fa-box-open"></i> 道具背包</button>
-            <button class="nav-btn" onclick="switchTab('redeem')"><i class="fa-solid fa-ticket"></i> 禮包兌換</button>
-            <button class="nav-btn admin-only" id="admin-tab-btn" onclick="switchTab('admin')" style="display:none;"><i class="fa-solid fa-user-shield"></i> 後台管理</button>
-        </nav>
-
-        <!-- 主要內容區域 -->
-        <main class="content-area">
-            <!-- 產業分頁 -->
-            <section id="tab-industry" class="tab-content active">
-                <div class="category-filter" id="category-filter">
-                    <!-- 動態生成 9 大分類按鈕 -->
-                </div>
-                <div class="industry-grid" id="industry-grid">
-                    <!-- 動態生成 135 個產業卡片 -->
-                </div>
-            </section>
-
-            <!-- 倉庫分頁 -->
-            <section id="tab-warehouse" class="tab-content">
-                <h2><i class="fa-solid fa-boxes-stacked"></i> 企業物資儲藏庫</h2>
-                <div class="warehouse-grid" id="warehouse-grid"></div>
-            </section>
-
-            <!-- 交易所分頁 -->
-            <section id="tab-market" class="tab-content">
-                <h2><i class="fa-solid fa-scale-balanced"></i> 全球即時交易所</h2>
-                <div class="market-container">
-                    <div class="market-section">
-                        <h3>政府緊急採購（保底變現）</h3>
-                        <div id="gov-procurement" class="gov-grid"></div>
-                    </div>
-                    <div class="market-section">
-                        <h3>玩家掛單市場</h3>
-                        <div id="market-listings" class="listings-grid"></div>
-                    </div>
-                </div>
-            </section>
-
-            <!-- 道具背包分頁 -->
-            <section id="tab-items" class="tab-content">
-                <h2><i class="fa-solid fa-briefcase"></i> 特殊道具與卡片</h2>
-                <div class="items-grid" id="items-grid"></div>
-            </section>
-
-            <!-- 禮包兌換分頁 -->
-            <section id="tab-redeem" class="tab-content">
-                <h2><i class="fa-solid fa-gift"></i> 兌換禮包碼</h2>
-                <div class="redeem-box">
-                    <input type="text" id="redeem-code-input" placeholder="請輸入兌換碼（預設：zxcvb123）">
-                    <button onclick="redeemCode()"><i class="fa-solid fa-check"></i> 立即兌換</button>
-                </div>
-            </section>
-
-            <!-- 管理員後台 -->
-            <section id="tab-admin" class="tab-content">
-                <h2><i class="fa-solid fa-sliders"></i> 全球市場後台控制台</h2>
-                <div class="admin-panel">
-                    <div class="admin-card">
-                        <h3>新增禮包兌換碼</h3>
-                        <input type="text" id="admin-code-name" placeholder="兌換碼名稱">
-                        <input type="number" id="admin-code-cash" placeholder="獎勵金額">
-                        <input type="number" id="admin-code-limit" placeholder="限額人數">
-                        <button onclick="adminCreateCode()">建立兌換碼</button>
-                    </div>
-                </div>
-            </section>
-        </main>
-    </div>
-
-    <!-- Toast 提示元件 -->
+    <!-- Toast 浮動通知容器 -->
     <div id="toast-container"></div>
 
-    <script src="[https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js](https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js)"></script>
-    <script src="[https://www.gstatic.com/firebasejs/9.22.1/firebase-auth-compat.js](https://www.gstatic.com/firebasejs/9.22.1/firebase-auth-compat.js)"></script>
-    <script src="[https://www.gstatic.com/firebasejs/9.22.1/firebase-database-compat.js](https://www.gstatic.com/firebasejs/9.22.1/firebase-database-compat.js)"></script>
+    <h2><i class="fa-solid fa-globe"></i> 自由大亨：全球市場</h2>
+    
+    <!-- 帳號登入 / 註冊區 -->
+    <div id="auth-sec" class="card">
+        <h3 id="auth-title"><i class="fa-solid fa-lock"></i> 企業帳號登入</h3>
+        <input type="email" id="auth-email" placeholder="電子郵件 (Email)"><br>
+        <input type="password" id="auth-pass" placeholder="密碼 (至少 6 位數)"><br>
+        <div id="company-name-box" style="display: none;">
+            <input type="text" id="auth-company" placeholder="企業名稱 (例: 泰坦重工)"><br>
+        </div>
+        <button class="btn btn-success" id="auth-btn" style="width:100%; margin-top:5px;" onclick="handleAuth()">
+            <i class="fa-solid fa-right-to-bracket"></i> 登入企業
+        </button>
+        <button class="btn btn-purple" style="width:100%; margin-top:5px;" onclick="toggleAuthMode()" id="toggle-btn">
+            <i class="fa-solid fa-user-plus"></i> 切換至：註冊新帳號
+        </button>
+    </div>
+
+    <!-- 遊戲主體內容 -->
+    <div id="game-sec" style="display: none;">
+
+        <!-- 頂部即時生產狀態顯示列 -->
+        <div class="global-status-bar">
+            <div class="flex-between">
+                <div>
+                    <i class="fa-solid fa-gears fa-spin" style="color:var(--accent);"></i> <b>全域生產狀態：</b>
+                    <span id="global-task-name" style="color:#ffc107; font-weight:bold;">💤 工廠閒置中</span>
+                    <span id="speed-buff-tag" class="buff-badge" style="display:none;"><i class="fa-solid fa-bolt"></i> 生產加速中</span>
+                </div>
+                <button class="btn btn-danger" id="stop-task-btn" style="font-size:0.75em; padding: 3px 8px; display:none;" onclick="stopProductionTask()">
+                    <i class="fa-solid fa-circle-stop"></i> 停止生產
+                </button>
+            </div>
+            <div class="progress-bg">
+                <div id="global-progress-bar" class="progress-fill"></div>
+            </div>
+        </div>
+        
+        <!-- 頁籤導航欄 -->
+        <div class="tab-nav">
+            <button class="tab-btn active" onclick="switchTab(event, 'tab-overview')"><i class="fa-solid fa-building"></i> 企業總覽</button>
+            <button class="tab-btn" onclick="switchTab(event, 'tab-items')"><i class="fa-solid fa-box-archive"></i> 道具背包</button>
+            <button class="tab-btn" onclick="switchTab(event, 'tab-production')"><i class="fa-solid fa-industry"></i> 產業設施</button>
+            <button class="tab-btn" onclick="switchTab(event, 'tab-market')"><i class="fa-solid fa-landmark-flag"></i> 全球交易所</button>
+            <button class="tab-btn" onclick="switchTab(event, 'tab-wiki')"><i class="fa-solid fa-book-open"></i> 商業百科</button>
+            <button class="tab-btn btn-danger" id="admin-tab-btn" style="display:none;" onclick="switchTab(event, 'tab-admin')"><i class="fa-solid fa-user-shield"></i> 管理員後台</button>
+        </div>
+
+        <!-- 1. 企業總覽頁籤 -->
+        <div id="tab-overview" class="tab-content active">
+            <div class="card" style="background: #252525;">
+                <div class="flex-between">
+                    <div>
+                        <i class="fa-solid fa-building"></i> <b id="display-name" style="color:#007bff; font-size:1.1em;">-</b>
+                        <span id="admin-tag" class="admin-badge" style="display:none;">最高管理員</span>
+                    </div>
+                    <button class="btn btn-danger" style="font-size:0.7em; padding: 2px 6px;" onclick="logout()"><i class="fa-solid fa-right-from-bracket"></i> 安全登出</button>
+                </div>
+                <hr style="border:0.5px solid #444; margin: 8px 0;">
+                <h4 style="margin:5px 0;"><i class="fa-solid fa-sack-dollar"></i> 財務與資產統計：</h4>
+                <div class="grid-2">
+                    <div><i class="fa-solid fa-money-bill-wave" style="color:#28a745;"></i> 現金: <b id="cash" style="color: #28a745;">$0</b></div>
+                    <div><i class="fa-solid fa-industry"></i> 擁有產業設施: <b id="owned-industries-count">0 / 135</b></div>
+                </div>
+            </div>
+
+            <!-- 兌換碼兌換區塊 -->
+            <div class="card" style="border: 1px solid var(--purple);">
+                <h4 style="margin:0 0 5px 0; color:var(--purple);"><i class="fa-solid fa-ticket"></i> 企業兌換碼禮包兌換</h4>
+                <div style="display:flex; gap:5px;">
+                    <input type="text" id="redeem-code-input" placeholder="輸入兌換碼 (如: zxcvb123)" style="margin:0;">
+                    <button class="btn btn-purple" style="white-space:nowrap;" onclick="redeemCode()"><i class="fa-solid fa-gift"></i> 領取兌換</button>
+                </div>
+            </div>
+
+            <!-- 通知訊息卡片 -->
+            <div id="msg-card" class="card" style="display:none; border:1px solid var(--warning); background:#222; position:relative;">
+                <button onclick="closeNoticeCard()" class="close-notice-btn" title="關閉通知">✕</button>
+                <h4 style="color:var(--warning); margin:0 0 5px 0;"><i class="fa-solid fa-envelope"></i> 管理員訊息/系統通知</h4>
+                <div id="msg-content" style="font-size:0.9em; color:#ddd; padding-right:20px;">無訊息</div>
+            </div>
+
+            <div class="card">
+                <h4><i class="fa-solid fa-warehouse"></i> 詳細物料倉庫庫存</h4>
+                <div id="inventory-detail-list" class="grid-2" style="font-size: 0.85em;"></div>
+            </div>
+        </div>
+
+        <!-- 2. 道具背包頁籤 -->
+        <div id="tab-items" class="tab-content">
+            <div class="card">
+                <h3><i class="fa-solid fa-box-archive"></i> 企業道具庫</h3>
+                <p style="color:#aaa; font-size:0.85em; margin-top:-5px;">使用機率模組卡，可在生產時觸發雙倍爆擊、免材料或幸運贈送！</p>
+                <div id="items-list" class="grid-2"></div>
+            </div>
+        </div>
+
+        <!-- 3. 產業生產頁籤 -->
+        <div id="tab-production" class="tab-content">
+            <div class="card">
+                <h3><i class="fa-solid fa-industry"></i> 全球產業設施營運中心 (135 項設施)</h3>
+                <p style="color:#aaa; font-size:0.85em; margin-top:-5px;">切換分類購買與營運產業設施，開啟自動化生產賺取收益。</p>
+                
+                <div class="category-filter" id="category-buttons" style="margin-bottom: 10px; display: flex; gap: 5px; overflow-x: auto; padding-bottom: 5px;">
+                    <!-- 分類按鈕動態注入 -->
+                </div>
+
+                <div id="industry-production-list"></div>
+            </div>
+        </div>
+
+        <!-- 4. 全球交易所與政府採購頁籤 -->
+        <div id="tab-market" class="tab-content">
+            <div class="card">
+                <h3><i class="fa-solid fa-store"></i> 全球玩家即時交易所</h3>
+                <p style="margin:2px 0; font-size:0.85em; color:#aaa;">選擇物料發布賣單（數量限定正整數）：</p>
+                <div class="grid-2">
+                    <select id="sell-item" onchange="updateMarketPriceDisplay()"></select>
+                    <input type="number" id="sell-qty" min="1" step="1" placeholder="數量 (不可有小數)">
+                </div>
+                <div style="font-size:0.85em; color:#ffc107; margin-bottom:4px;">
+                    <i class="fa-solid fa-chart-line"></i> 即時動態市價：$<span id="selected-market-price">0</span> (法定底價: $<span id="selected-min-price">0</span>)
+                </div>
+                <input type="number" id="sell-price" placeholder="設定出售單價 ($)">
+                <button class="btn btn-warning" style="width:100%; margin-top:5px;" onclick="postGlobalOrder()"><i class="fa-solid fa-bullhorn"></i> 上架交易所</button>
+
+                <h4 style="margin-bottom: 5px; margin-top:15px;"><i class="fa-solid fa-list-check"></i> 全服線上掛單列表</h4>
+                <div class="table-responsive">
+                    <table>
+                        <thead>
+                            <tr><th>賣家企業</th><th>物料</th><th>數量</th><th>單價</th><th>操作</th></tr>
+                        </thead>
+                        <tbody id="global-market-list">
+                            <tr><td colspan="5">連線資料庫中...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- 政府物料採購處 -->
+            <div class="card" style="border: 1px solid var(--warning);">
+                <h3><i class="fa-solid fa-building-columns"></i> 政府物料採購處 (快速變現)</h3>
+                <p style="font-size:0.85em; color:#aaa;">選擇物料賣給政府（整數數量）：</p>
+                <div class="grid-2">
+                    <select id="npc-sell-item" onchange="updateNpcEstimate()"></select>
+                    <input type="number" id="npc-sell-qty" min="1" step="1" value="1" placeholder="出售數量" oninput="updateNpcEstimate()">
+                </div>
+                <div style="font-size:0.9em; margin: 6px 0;">預計獲得政府補貼：<b id="npc-est-payout" style="color:#28a745;">$0</b></div>
+                <button class="btn btn-success" style="width:100%; font-size:1em;" onclick="confirmNpcSell()"><i class="fa-solid fa-circle-check"></i> 確定出售給政府</button>
+            </div>
+        </div>
+
+        <!-- 5. 商業百科頁籤 -->
+        <div id="tab-wiki" class="tab-content">
+            <div class="card">
+                <h3><i class="fa-solid fa-sitemap"></i> 135 項產業設施圖鑑百科</h3>
+                <div class="table-responsive">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>分類</th>
+                                <th>設施名稱</th>
+                                <th>階層 (Tier)</th>
+                                <th>建造資金</th>
+                                <th>基礎產出收益</th>
+                                <th>投入原料</th>
+                                <th>產出物料/收益</th>
+                            </tr>
+                        </thead>
+                        <tbody id="industry-tree-table-body"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- 6. 管理員專屬後台頁籤 -->
+        <div id="tab-admin" class="tab-content">
+            <div class="card" style="border:1px solid var(--danger);">
+                <div class="flex-between">
+                    <h3 style="color:var(--danger); margin:0;"><i class="fa-solid fa-user-shield"></i> 最高管理員控制台</h3>
+                    <button class="btn btn-purple" style="font-size:0.8em;" onclick="refreshAdminData()"><i class="fa-solid fa-rotate"></i> 重新整理後台資料</button>
+                </div>
+                <hr style="border:0.5px solid #444; margin:10px 0;">
+                
+                <!-- 新增/管理兌換碼區塊 -->
+                <div style="background:#282828; padding:10px; border-radius:6px; border:1px dashed var(--purple); margin-bottom:15px;">
+                    <h4 style="margin:0 0 8px 0; color:var(--purple);"><i class="fa-solid fa-ticket"></i> 新增 / 管理兌換碼 (禮包碼)</h4>
+                    <input type="text" id="new-code-name" placeholder="兌換碼名稱 (例: VIP888)">
+                    <div class="grid-2">
+                        <select id="new-code-type">
+                            <option value="CASH">💵 現金 (USD)</option>
+                            <option value="ADMIN">🛡️ 管理員權限 (ADMIN)</option>
+                        </select>
+                        <input type="number" id="new-code-val" min="1" step="1" value="100000" placeholder="給予金額/數量">
+                    </div>
+                    <div style="margin-top:4px;">
+                        <input type="number" id="new-code-limit" min="1" step="1" value="10" placeholder="可領取總人數上限">
+                    </div>
+                    <button class="btn btn-purple" style="width:100%; margin-top:6px;" onclick="adminCreateCode()"><i class="fa-solid fa-plus"></i> 發布兌換碼</button>
+
+                    <h5 style="margin:10px 0 5px 0;">已發布的兌換碼清單：</h5>
+                    <div class="table-responsive">
+                        <table>
+                            <thead>
+                                <tr><th>代碼</th><th>獎勵內容</th><th>剩餘/上限</th><th>操作</th></tr>
+                            </thead>
+                            <tbody id="admin-codes-list">
+                                <tr><td colspan="4">載入中...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <h4><i class="fa-solid fa-users-gear"></i> 玩家管理系統</h4>
+                <div class="table-responsive">
+                    <table>
+                        <thead>
+                            <tr><th>玩家 UID</th><th>企業名稱</th><th>狀態</th><th>現金</th><th>操作選項</th></tr>
+                        </thead>
+                        <tbody id="admin-user-list">
+                            <tr><td colspan="5">載入玩家清單中...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <hr style="border:0.5px solid #444; margin:15px 0;">
+                <h4><i class="fa-solid fa-gift"></i> 給予物料 / 道具 / 資金權限</h4>
+                <select id="admin-target-user"></select>
+                <div class="grid-2">
+                    <select id="admin-give-item">
+                        <option value="CASH">💵 現金 (USD)</option>
+                    </select>
+                    <input type="number" id="admin-give-qty" min="1" step="1" placeholder="數量 (整數)">
+                </div>
+                <button class="btn btn-success" style="width:100%; margin-top:5px;" onclick="adminGiveItem()"><i class="fa-solid fa-plus"></i> 發放資源給指定玩家</button>
+
+                <hr style="border:0.5px solid #444; margin:15px 0;">
+                <h4><i class="fa-solid fa-paper-plane"></i> 向玩家發送私訊通知</h4>
+                <input type="text" id="admin-msg-text" placeholder="輸入私訊通知內容...">
+                <button class="btn btn-purple" style="width:100%; margin-top:5px;" onclick="adminSendMessage()"><i class="fa-solid fa-comment-dots"></i> 發送訊息</button>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- 遊戲主邏輯 -->
     <script src="app.js"></script>
 </body>
 </html>
