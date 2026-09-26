@@ -201,6 +201,7 @@ let playerData = { companyName: "", cash: 50000, inventory: {}, items: {}, owned
 let priceMultipliers = {};
 let isAdminDataLoaded = false;
 let currentCategoryFilter = "all";
+let isInitialized = false; // 新增：避免 Firebase 重複綁定與高頻刷新標記
 
 // Toast 通知
 function showToast(msg) {
@@ -233,7 +234,7 @@ function switchTab(evt, tabId) {
     }
 }
 
-// 監聽 Auth
+// 監聽 Auth（修復：防重複初始化與過載問題）
 auth.onAuthStateChanged(user => {
     if (user) {
         currentUser = user;
@@ -280,16 +281,22 @@ auth.onAuthStateChanged(user => {
             renderCategoryButtons();
             renderProductionTab();
             renderItemsTab();
+            updateUI(); // 確保資料更新時順帶重新計算並刷新 UI
         });
 
-        listenToPriceMultipliers();
-        renderIndustryTree();
-        renderMarketSelects();
-        startGameLoop();
-        listenToGlobalMarket();
-        initDefaultCode();
+        // 防止開啟頁面時多次綁定全局監聽
+        if (!isInitialized) {
+            listenToPriceMultipliers();
+            renderIndustryTree();
+            renderMarketSelects();
+            startGameLoop();
+            listenToGlobalMarket();
+            initDefaultCode();
+            isInitialized = true;
+        }
     } else {
         currentUser = null;
+        isInitialized = false;
         document.getElementById('auth-sec').style.display = 'block';
         document.getElementById('game-sec').style.display = 'none';
     }
@@ -407,6 +414,7 @@ function buyIndustryFacility(indId) {
     playerData.ownedIndustries[indId] = true;
     savePlayerData();
     renderProductionTab();
+    updateUI();
     showToast(`🎉 成功建造設施【${ind.name}】！`);
 }
 
@@ -435,6 +443,7 @@ function stopProductionTask() {
     }
 }
 
+// 核心計時器（修復：優化繪製，降低繪製次數避免卡頓）
 function startGameLoop() {
     setInterval(() => {
         let isSpeeding = playerData.speedBuffUntil && playerData.speedBuffUntil > Date.now();
@@ -464,16 +473,18 @@ function startGameLoop() {
                 }
                 task.progress = 0;
                 savePlayerData();
+                updateUI(); // 生產完成獲得收益時，主動更新介面
             }
         } else {
             document.getElementById('global-task-name').innerHTML = "💤 工廠閒置中";
             document.getElementById('global-progress-bar').style.width = "0%";
             document.getElementById('stop-task-btn').style.display = "none";
         }
-        updateUI();
+        // 注意：原先造成高頻重繪的 updateUI() 已經從此處迴圈中移除
     }, 100);
 }
 
+// UI 渲染（修復：採用比對機制，有實際變更才修改 DOM）
 function updateUI() {
     document.getElementById('cash').innerText = '$' + Math.round(playerData.cash).toLocaleString();
     let ownedCount = Object.keys(playerData.ownedIndustries || {}).length;
@@ -486,7 +497,14 @@ function updateUI() {
             detailHtml += `<div><b>${itemKey}:</b> ${count}</div>`;
         }
     });
-    document.getElementById('inventory-detail-list').innerHTML = detailHtml || "<div>倉庫目前空空如也</div>";
+
+    let container = document.getElementById('inventory-detail-list');
+    let finalHtml = detailHtml || "<div>倉庫目前空空如也</div>";
+    
+    // 比對 HTML 是否發生變化，以減少不必要的頁面 Layout 重新計算
+    if (container.innerHTML !== finalHtml) {
+        container.innerHTML = finalHtml;
+    }
 }
 
 function renderItemsTab() {
@@ -530,6 +548,7 @@ function useGameItem(itemKey) {
 
     savePlayerData();
     renderItemsTab();
+    updateUI();
 }
 
 function processOfflineEarnings() {
@@ -660,6 +679,7 @@ function confirmNpcSell() {
     playerData.cash += total;
     savePlayerData();
     updateNpcEstimate();
+    updateUI();
     showToast(`💵 出售給政府，獲得 $${total.toLocaleString()}！`);
 }
 
@@ -674,6 +694,7 @@ function postGlobalOrder() {
 
     playerData.inventory[itemKey] -= qty;
     savePlayerData();
+    updateUI();
 
     db.ref('market').push({
         sellerUid: currentUser.uid,
@@ -723,6 +744,7 @@ function buyOrder(orderId, itemKey, qty, price, sellerUid) {
         playerData.cash -= total;
         playerData.inventory[itemKey] = (playerData.inventory[itemKey] || 0) + qty;
         savePlayerData();
+        updateUI();
         db.ref('users/' + sellerUid + '/cash').transaction(c => (c || 0) + total);
         showToast("🛒 購買成功！");
     });
